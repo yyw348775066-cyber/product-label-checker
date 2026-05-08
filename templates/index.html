@@ -121,6 +121,26 @@
             font-size: 13px;
         }
 
+        .deepseek-helper {
+            margin: 8px 0;
+            padding: 10px 12px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            color: #475569;
+            font-size: 13px;
+            line-height: 1.45;
+        }
+
+        .deepseek-helper p {
+            margin: 0 0 6px;
+        }
+
+        .deepseek-helper ol {
+            margin: 0;
+            padding-left: 20px;
+        }
+
         .example-details {
             margin-top: 12px;
             border: 1px solid #e5e7eb;
@@ -248,6 +268,10 @@
             background: #fff;
         }
 
+        .cross-check-table {
+            min-width: 980px;
+        }
+
         th,
         td {
             padding: 12px;
@@ -301,6 +325,12 @@
 
         .cell-risk {
             background: #fef3c7;
+        }
+
+        .cross-check-table tr.different .cross-result-cell {
+            background: #fffbeb;
+            color: #92400e;
+            font-weight: 800;
         }
 
         .summary {
@@ -467,7 +497,7 @@
             <h1>产品标签审核对比工具</h1>
             <p class="hint">上传产品标签图片，粘贴五个平台的审核结果后生成字段对比表。当前版本只使用关键词和正则规则提取字段，不调用外部 AI API。</p>
 
-            <form method="POST" enctype="multipart/form-data">
+            <form method="POST" enctype="multipart/form-data" id="labelAuditForm">
                 <input type="hidden" name="audit_type" value="label">
                 <div class="section">
                     <label for="label_image">产品标签图片</label>
@@ -562,6 +592,7 @@
                 </div>
 
                 <div class="section form-actions">
+                    <button class="secondary-button" type="button" id="run_label_ai_button">调用五个平台API生成结果</button>
                     <button class="secondary-button" type="button" id="fill_test_case_button">填入测试样例</button>
                     <button class="secondary-button" type="button" id="clear_test_case_button">清空测试样例</button>
                 </div>
@@ -571,26 +602,45 @@
                         <div>
                             <div class="input-header">
                                 <label for="{{ platform.key }}_result">{{ platform.name }} 审核结果</label>
+                                {% if platform.key == "deepseek" %}
+                                    <button class="small-button deepseek-open-button" type="button" data-status="label_deepseek_status">打开 DeepSeek</button>
+                                    <button class="small-button deepseek-copy-label-prompt-button" type="button" data-status="label_deepseek_status">复制标签审核提示词</button>
+                                {% endif %}
                                 <button class="small-button clear-one-button" type="button" data-target="{{ platform.key }}_result">清空</button>
                             </div>
+                            {% if platform.key == "deepseek" %}
+                                <div class="copy-status" id="label_deepseek_status"></div>
+                                <div class="deepseek-helper">
+                                    <p>当前标签文件：{% if image_url %}<a href="{{ image_url }}" target="_blank" rel="noopener">{{ label_file_name or image_url }}</a>{% else %}尚未上传标签图片{% endif %}</p>
+                                    <p>操作提示：</p>
+                                    <ol>
+                                        <li>点击“打开 DeepSeek”</li>
+                                        <li>在 DeepSeek 网页中上传当前标签图片</li>
+                                        <li>点击“复制标签审核提示词”</li>
+                                        <li>在 DeepSeek 中粘贴并发送</li>
+                                        <li>将 DeepSeek 回答复制回本输入框</li>
+                                        <li>点击生成标签对比表</li>
+                                    </ol>
+                                </div>
+                            {% endif %}
                             <textarea class="ai-result" id="{{ platform.key }}_result" name="{{ platform.key }}_result" placeholder="粘贴 {{ platform.name }} 的审核结果">{{ ai_results[platform.key] }}</textarea>
                         </div>
                     {% endfor %}
                 </div>
 
                 <div class="section form-actions">
-                    <button type="submit">生成对比表格</button>
+                    <button type="button" id="labelCompareButton">生成对比表格</button>
                     <button class="secondary-button" type="button" id="clear_all_button">清空全部</button>
                 </div>
             </form>
 
             {% if compare_table %}
-                <div id="compare_results">
+                <div id="labelCompareResults">
                 <div class="section">
                     {% if summary %}
                         <div class="summary">
                             <h2>审核结论汇总</h2>
-                            <div class="summary-grid">
+                            <div class="summary-grid" id="labelSummary">
                                 <div class="summary-card">
                                     <p class="summary-label">总字段数</p>
                                     <p class="summary-value">{{ summary.total }}</p>
@@ -624,10 +674,10 @@
                 <div class="section">
                     <div class="table-header">
                         <h2>字段对比表</h2>
-                        <button class="secondary-button" type="button" id="save_csv_button">保存本次结果</button>
+                        <button class="secondary-button" type="button" id="labelExportCsv">保存本次结果</button>
                     </div>
                     <div class="table-wrap">
-                        <table id="compare_table">
+                        <table id="labelResultTable">
                             <thead>
                                 <tr>
                                     <th>字段</th>
@@ -638,7 +688,7 @@
                                     <th>人工复核备注</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="labelTableBody">
                                 {% for row in compare_table %}
                                     <tr class="{{ row.row_class }}{% if row.needs_key_review %} key-review{% endif %}" data-field="{{ row.field }}">
                                         <td class="field-cell">{% if row.needs_key_review %}⚠️ {% endif %}{{ row.field }}</td>
@@ -661,8 +711,8 @@
                         <h2>最终审核结论</h2>
                         <div class="review-grid">
                             <div>
-                                <label for="final_conclusion">审核结论</label>
-                                <select id="final_conclusion">
+                                <label for="labelFinalConclusion">审核结论</label>
+                                <select id="labelFinalConclusion">
                                     <option value="待复核">待复核</option>
                                     <option value="初步通过">初步通过</option>
                                     <option value="存在疑问">存在疑问</option>
@@ -670,18 +720,18 @@
                                 </select>
                             </div>
                             <div>
-                                <label for="review_note">审核说明</label>
-                                <textarea class="review-note" id="review_note" placeholder="填写最终审核说明"></textarea>
+                                <label for="labelReviewNote">审核说明</label>
+                                <textarea class="review-note" id="labelReviewNote" placeholder="填写最终审核说明"></textarea>
                             </div>
                         </div>
                         <div class="section form-actions">
-                            <button type="button" id="generate_record_button">生成审核记录</button>
-                            <button class="secondary-button" type="button" id="copy_record_button">复制审核记录</button>
+                            <button type="button" id="labelGenerateRecord">生成审核记录</button>
+                            <button class="secondary-button" type="button" id="labelCopyRecord">复制审核记录</button>
                         </div>
                         <div class="record-box">
-                            <label for="review_record">审核记录</label>
-                            <textarea class="record-output" id="review_record" readonly placeholder="点击“生成审核记录”后在这里显示"></textarea>
-                            <div class="copy-status" id="copy_record_status"></div>
+                            <label for="labelReviewRecord">审核记录</label>
+                            <textarea class="record-output" id="labelReviewRecord" readonly placeholder="点击“生成审核记录”后在这里显示"></textarea>
+                            <div class="copy-status" id="labelCopyRecordStatus"></div>
                         </div>
                     </div>
                 </div>
@@ -691,7 +741,7 @@
             <div class="section">
                 <div class="review-panel">
                     <h2>第三方食品检验报告审核</h2>
-                    <form method="POST" enctype="multipart/form-data">
+                    <form method="POST" enctype="multipart/form-data" id="reportAuditForm">
                         <input type="hidden" name="audit_type" value="report">
 
                         <div class="section">
@@ -726,19 +776,24 @@
 - 检验类别
 - 委托单位
 - 生产单位
-- 执行标准
 - 样品规格
-- 检验依据
 - 判定依据
 - 签发日期
-- 检验机构
-- CMA/CNAS资质信息
+- CMA/CNAS资质结论
+
+其中，CMA/CNAS资质结论只需要判断报告中是否看到CMA或CNAS相关标识，并输出结论：
+- 具备CMA资质
+- 具备CNAS资质
+- 同时具备CMA和CNAS资质
+- 未看到CMA/CNAS资质
+- 无法判断，需人工复核
 
 二、标准项目核对
 请结合公开可查询的标准信息：
-- 列出该标准常见必检项目
+- 列出该产品或判定依据相关的常见必检项目
 - 列出对应限量要求
 - 列出判定依据
+- 如标准信息无法确认，请明确提示“需人工复核标准原文”
 
 三、报告项目审核
 请逐项核对：
@@ -746,7 +801,6 @@
 - 是否存在漏检
 - 是否存在多检项目
 - 是否存在判定依据缺失
-- 是否存在检验依据错误
 - 是否存在项目与产品类别不匹配
 
 四、数据合理性审核
@@ -764,13 +818,10 @@
 检验类别：
 委托单位：
 生产单位：
-执行标准：
 样品规格：
-检验依据：
 判定依据：
 签发日期：
-检验机构：
-CMA/CNAS资质信息：
+CMA/CNAS资质结论：
 标准必检项目清单：
 报告项目匹配核对：
 不合格及风险提示：
@@ -782,6 +833,7 @@ CMA/CNAS资质信息：
 - 如果报告中没有看到对应信息，请填写“未看到”
 - 不要编造报告中没有的信息
 - 不要根据常识补全报告中未展示的信息
+- CMA/CNAS资质结论只输出判断结论，不展开长篇说明
 - 标准必检项目清单可以结合公开可查询信息，但必须提示“需人工复核标准原文”
 - 不合格及风险提示必须逐条编号
 - 编号格式固定为英文数字加点号，例如：1. 2. 3.
@@ -793,6 +845,7 @@ CMA/CNAS资质信息：
                         </div>
 
                         <div class="section form-actions">
+                            <button class="secondary-button" type="button" id="run_report_ai_button">调用五个平台API生成结果</button>
                             <button class="secondary-button" type="button" id="fill_report_test_case_button">填入报告测试样例</button>
                             <button class="secondary-button" type="button" id="clear_report_test_case_button">清空报告测试样例</button>
                         </div>
@@ -802,26 +855,45 @@ CMA/CNAS资质信息：
                                 <div>
                                     <div class="input-header">
                                         <label for="report_{{ platform.key }}_result">{{ platform.name }} 报告审核结果</label>
+                                        {% if platform.key == "deepseek" %}
+                                            <button class="small-button deepseek-open-button" type="button" data-status="report_deepseek_status">打开 DeepSeek</button>
+                                            <button class="small-button deepseek-copy-report-prompt-button" type="button" data-status="report_deepseek_status">复制检验报告审核提示词</button>
+                                        {% endif %}
                                         <button class="small-button clear-one-button" type="button" data-target="report_{{ platform.key }}_result">清空</button>
                                     </div>
+                                    {% if platform.key == "deepseek" %}
+                                        <div class="copy-status" id="report_deepseek_status"></div>
+                                        <div class="deepseek-helper">
+                                            <p>当前报告文件：{% if report_file_url %}<a href="{{ report_file_url }}" target="_blank" rel="noopener">{{ report_file_name or report_file_url }}</a>{% else %}尚未上传检验报告{% endif %}</p>
+                                            <p>操作提示：</p>
+                                            <ol>
+                                                <li>点击“打开 DeepSeek”</li>
+                                                <li>在 DeepSeek 网页中上传当前检验报告</li>
+                                                <li>点击“复制检验报告审核提示词”</li>
+                                                <li>在 DeepSeek 中粘贴并发送</li>
+                                                <li>将 DeepSeek 回答复制回本输入框</li>
+                                                <li>点击生成报告对比表</li>
+                                            </ol>
+                                        </div>
+                                    {% endif %}
                                     <textarea class="report-ai-result" id="report_{{ platform.key }}_result" name="report_{{ platform.key }}_result" placeholder="粘贴 {{ platform.name }} 的报告审核结果">{{ report_results[platform.key] }}</textarea>
                                 </div>
                             {% endfor %}
                         </div>
 
                         <div class="section form-actions">
-                            <button type="submit">生成报告对比表格</button>
+                            <button type="button" id="reportCompareButton">生成报告对比表格</button>
                             <button class="secondary-button" type="button" id="clear_report_all_button">清空报告输入</button>
                         </div>
                     </form>
 
                     {% if report_compare_table %}
-                        <div id="report_compare_results">
+                        <div id="reportCompareResults">
                             <div class="section">
                                 {% if report_summary %}
                                     <div class="summary">
                                         <h2>报告风险提示</h2>
-                                        <div class="summary-grid">
+                                        <div class="summary-grid" id="reportSummary">
                                             <div class="summary-card">
                                                 <p class="summary-label">总字段数</p>
                                                 <p class="summary-value">{{ report_summary.total }}</p>
@@ -855,10 +927,10 @@ CMA/CNAS资质信息：
                             <div class="section">
                                 <div class="table-header">
                                     <h2>报告字段对比表</h2>
-                                    <button class="secondary-button" type="button" id="save_report_csv_button">保存报告审核结果</button>
+                                    <button class="secondary-button" type="button" id="reportExportCsv">保存报告审核结果</button>
                                 </div>
                                 <div class="table-wrap">
-                                    <table id="report_compare_table">
+                                    <table id="reportResultTable">
                                         <thead>
                                             <tr>
                                                 <th>字段</th>
@@ -869,7 +941,7 @@ CMA/CNAS资质信息：
                                                 <th>人工备注</th>
                                             </tr>
                                         </thead>
-                                        <tbody>
+                                        <tbody id="reportTableBody">
                                             {% for row in report_compare_table %}
                                                 <tr class="{{ row.row_class }}{% if row.needs_key_review %} key-review{% endif %}" data-field="{{ row.field }}">
                                                     <td class="field-cell">{% if row.needs_key_review %}⚠️ {% endif %}{{ row.field }}</td>
@@ -891,8 +963,8 @@ CMA/CNAS资质信息：
                                 <h2>最终报告审核结论</h2>
                                 <div class="review-grid">
                                     <div>
-                                        <label for="final_report_conclusion">报告审核结论</label>
-                                        <select id="final_report_conclusion">
+                                        <label for="reportFinalConclusion">报告审核结论</label>
+                                        <select id="reportFinalConclusion">
                                             <option value="待复核">待复核</option>
                                             <option value="初步通过">初步通过</option>
                                             <option value="存在疑问">存在疑问</option>
@@ -900,10 +972,75 @@ CMA/CNAS资质信息：
                                         </select>
                                     </div>
                                     <div>
-                                        <label for="report_review_note">报告审核说明</label>
-                                        <textarea class="review-note" id="report_review_note" placeholder="填写最终报告审核说明"></textarea>
+                                        <label for="reportReviewNote">报告审核说明</label>
+                                        <textarea class="review-note" id="reportReviewNote" placeholder="填写最终报告审核说明"></textarea>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="review-panel">
+                    <h2>标签 vs 检验报告交叉核对</h2>
+                    <form method="POST" id="crossCheckForm">
+                        <input type="hidden" name="audit_type" value="cross">
+
+                        <div class="section textarea-grid">
+                            <div>
+                                <div class="input-header">
+                                    <label for="cross_label_text">标签审核结果</label>
+                                    <button class="small-button" type="button" id="fill_cross_label_button">从上方标签结果带入</button>
+                                </div>
+                                <textarea id="cross_label_text" name="cross_label_text" placeholder="粘贴标签审核结果，系统会提取产品名称、生产企业、委托企业、净含量、执行标准">{{ cross_label_text }}</textarea>
+                            </div>
+                            <div>
+                                <div class="input-header">
+                                    <label for="cross_report_text">检验报告审核结果</label>
+                                    <button class="small-button" type="button" id="fill_cross_report_button">从上方报告结果带入</button>
+                                </div>
+                                <textarea id="cross_report_text" name="cross_report_text" placeholder="粘贴检验报告审核结果，系统会提取产品名称、生产单位、委托单位、样品规格、判定依据">{{ cross_report_text }}</textarea>
+                            </div>
+                        </div>
+
+                        <div class="section form-actions">
+                            <button type="button" id="crossCheckButton">生成交叉核对表</button>
+                            <button class="secondary-button" type="button" id="clear_cross_button">清空交叉核对输入</button>
+                        </div>
+                    </form>
+
+                    {% if cross_check_table %}
+                        <div class="section">
+                            <div class="table-header">
+                                <h2>交叉核对表</h2>
+                            </div>
+                            <div class="table-wrap">
+                                <table class="cross-check-table" id="crossCheckTable">
+                                    <thead>
+                                        <tr>
+                                            <th>核对项目</th>
+                                            <th>标签信息</th>
+                                            <th>报告信息</th>
+                                            <th>核对结果</th>
+                                            <th>人工备注</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="crossCheckTableBody">
+                                        {% for row in cross_check_table %}
+                                            <tr class="{{ row.row_class }}" data-field="{{ row.item }}">
+                                                <td class="field-cell">{{ row.item }}</td>
+                                                <td>{{ row.label_value }}</td>
+                                                <td>{{ row.report_value }}</td>
+                                                <td class="cross-result-cell">{{ row.result }}</td>
+                                                <td>
+                                                    <textarea class="remark-input" placeholder="填写人工备注">{{ row.note }}</textarea>
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     {% endif %}
@@ -948,6 +1085,51 @@ CMA/CNAS资质信息：
                 copyReportPromptStatus.textContent = "";
             }, 1800);
         });
+
+        function showDeepSeekStatus(statusElement, text) {
+            if (!statusElement) {
+                return;
+            }
+
+            statusElement.textContent = text;
+            window.setTimeout(() => {
+                statusElement.textContent = "";
+            }, 2400);
+        }
+
+        async function copyPromptForDeepSeek(promptText, statusElement) {
+            try {
+                await navigator.clipboard.writeText(promptText);
+                showDeepSeekStatus(statusElement, "复制成功");
+            } catch (error) {
+                const tempTextarea = document.createElement("textarea");
+                tempTextarea.value = promptText;
+                tempTextarea.setAttribute("readonly", "");
+                tempTextarea.style.position = "fixed";
+                tempTextarea.style.left = "-9999px";
+                document.body.appendChild(tempTextarea);
+                tempTextarea.select();
+                document.execCommand("copy");
+                tempTextarea.remove();
+                showDeepSeekStatus(statusElement, "复制成功");
+            }
+        }
+
+        async function openDeepSeek(statusElement) {
+            try {
+                const response = await fetch("/automation/open_deepseek", {
+                    method: "POST",
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showDeepSeekStatus(statusElement, data.message || "DeepSeek 已打开，请上传文件并粘贴提示词");
+                } else {
+                    showDeepSeekStatus(statusElement, data.error || "DeepSeek启动失败");
+                }
+            } catch (error) {
+                showDeepSeekStatus(statusElement, `DeepSeek启动失败：${error.message || "请求失败"}`);
+            }
+        }
 
         const testCases = {
             chatgpt: `产品名称：清爽橙汁饮料
@@ -1033,13 +1215,10 @@ CMA/CNAS资质信息：
 检验类别：委托检验
 委托单位：示例贸易有限公司
 生产单位：示例食品有限公司
-执行标准：GB/T 31121
 样品规格：500mL/瓶
-检验依据：GB 5009 系列方法
 判定依据：GB/T 31121
 签发日期：2026-05-08
-检验机构：示例检测技术有限公司
-CMA/CNAS资质信息：CMA资质编号：2026000000
+CMA/CNAS资质结论：具备CMA资质
 标准必检项目清单：感官、净含量、可溶性固形物、菌落总数、大肠菌群，需人工复核标准原文
 报告项目匹配核对：报告项目与常见必检项目基本匹配，需人工复核标准原文
 不合格及风险提示：未发现明显风险，标准项目完整性仍需人工复核`,
@@ -1048,13 +1227,10 @@ CMA/CNAS资质信息：CMA资质编号：2026000000
 检验类别：委托检验
 委托单位：示例贸易有限公司
 生产单位：示例食品有限公司
-执行标准：GB/T 31121
 样品规格：500mL/瓶
-检验依据：GB 5009 系列方法
 判定依据：GB/T 31121
 签发日期：2026-05-08
-检验机构：示例检测技术有限公司
-CMA/CNAS资质信息：CMA资质编号：2026000000
+CMA/CNAS资质结论：具备CMA资质
 标准必检项目清单：感官、净含量、可溶性固形物、菌落总数、大肠菌群，需人工复核标准原文
 报告项目匹配核对：报告项目与常见必检项目基本匹配，需人工复核标准原文
 不合格及风险提示：未发现明显风险，标准项目完整性仍需人工复核`,
@@ -1063,13 +1239,10 @@ CMA/CNAS资质信息：CMA资质编号：2026000000
 检验类别：委托检验
 委托单位：示例贸易有限公司
 生产单位：示例食品有限公司
-执行标准：GB/T 31121
 样品规格：500mL/瓶
-检验依据：GB 5009 系列方法
 判定依据：GB/T 31121
 签发日期：2026-05-08
-检验机构：示例检测技术有限公司
-CMA/CNAS资质信息：CMA资质编号：2026000000
+CMA/CNAS资质结论：具备CMA资质
 标准必检项目清单：感官、净含量、可溶性固形物、菌落总数、大肠菌群，需人工复核标准原文
 报告项目匹配核对：报告项目与常见必检项目基本匹配，需人工复核标准原文
 不合格及风险提示：未发现明显风险，标准项目完整性仍需人工复核`,
@@ -1078,13 +1251,10 @@ CMA/CNAS资质信息：CMA资质编号：2026000000
 检验类别：委托检验
 委托单位：示例贸易有限公司
 生产单位：示例食品有限公司
-执行标准：GB/T 31121
 样品规格：500mL/瓶
-检验依据：GB 5009 系列方法
 判定依据：GB/T 31121
 签发日期：2026-05-08
-检验机构：示例检测技术有限公司
-CMA/CNAS资质信息：CMA资质编号：2026000000
+CMA/CNAS资质结论：具备CMA资质
 标准必检项目清单：感官、净含量、可溶性固形物、菌落总数、大肠菌群，需人工复核标准原文
 报告项目匹配核对：报告项目与常见必检项目基本匹配，需人工复核标准原文
 不合格及风险提示：未发现明显风险，标准项目完整性仍需人工复核`,
@@ -1093,23 +1263,79 @@ CMA/CNAS资质信息：CMA资质编号：2026000000
 检验类别：委托检验
 委托单位：示例贸易有限公司
 生产单位：示例食品有限公司
-执行标准：GB/T 31121
 样品规格：500mL/瓶
-检验依据：GB 5009 系列方法
 判定依据：GB/T 31121
 签发日期：2026-05-08
-检验机构：示例检测技术有限公司
-CMA/CNAS资质信息：CMA资质编号：2026000000
+CMA/CNAS资质结论：具备CMA资质
 标准必检项目清单：感官、净含量、可溶性固形物、菌落总数、大肠菌群，需人工复核标准原文
 报告项目匹配核对：报告项目与常见必检项目基本匹配，需人工复核标准原文
 不合格及风险提示：未发现明显风险，标准项目完整性仍需人工复核`
         };
 
-        function clearCompareResults() {
-            const compareResults = document.getElementById("compare_results");
-            if (compareResults) {
-                compareResults.remove();
+        let labelCompareResult = document.getElementById("labelResultTable");
+        let reportCompareResult = document.getElementById("reportResultTable");
+        let crossCheckResult = document.getElementById("crossCheckTable");
+
+        function refreshModuleResults() {
+            labelCompareResult = document.getElementById("labelResultTable");
+            reportCompareResult = document.getElementById("reportResultTable");
+            crossCheckResult = document.getElementById("crossCheckTable");
+        }
+
+        function clearLabelCompareResults() {
+            const labelCompareResults = document.getElementById("labelCompareResults");
+            if (labelCompareResults) {
+                labelCompareResults.remove();
             }
+            refreshModuleResults();
+        }
+
+        function clearReportCompareResults() {
+            const reportCompareResults = document.getElementById("reportCompareResults");
+            if (reportCompareResults) {
+                reportCompareResults.remove();
+            }
+            refreshModuleResults();
+        }
+
+        function clearCrossCheckResults() {
+            const crossTable = document.getElementById("crossCheckTable");
+            if (crossTable) {
+                crossTable.closest(".section").remove();
+            }
+            refreshModuleResults();
+        }
+
+        function rememberCurrentScrollPosition() {
+            window.sessionStorage.setItem(
+                "preservedScrollPosition",
+                JSON.stringify({ x: window.scrollX, y: window.scrollY })
+            );
+        }
+
+        function restoreCurrentScrollPosition() {
+            const rawPosition = window.sessionStorage.getItem("preservedScrollPosition");
+            if (!rawPosition) {
+                return;
+            }
+
+            window.sessionStorage.removeItem("preservedScrollPosition");
+            try {
+                const position = JSON.parse(rawPosition);
+                window.scrollTo(position.x || 0, position.y || 0);
+            } catch (error) {
+                return;
+            }
+        }
+
+        function submitModuleForm(formId) {
+            const form = document.getElementById(formId);
+            if (!form) {
+                return;
+            }
+
+            rememberCurrentScrollPosition();
+            form.requestSubmit();
         }
 
         function setAiTextareaValue(platformKey, value) {
@@ -1123,6 +1349,41 @@ CMA/CNAS资质信息：CMA资质编号：2026000000
             const textarea = document.getElementById(`report_${platformKey}_result`);
             if (textarea) {
                 textarea.value = value;
+            }
+        }
+
+        function formatAiApiResult(result) {
+            if (result && result.success) {
+                return result.content || "";
+            }
+
+            return `API调用失败：${result?.error || "未知错误"}`;
+        }
+
+        async function runAiApi(endpoint, prompt, setter, button) {
+            const originalText = button.textContent;
+            button.disabled = true;
+            button.textContent = "API调用中...";
+
+            try {
+                const response = await fetch(endpoint, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ prompt }),
+                });
+                const data = await response.json();
+                Object.entries(data.results || {}).forEach(([platformKey, result]) => {
+                    setter(platformKey, formatAiApiResult(result));
+                });
+            } catch (error) {
+                ["chatgpt", "deepseek", "tongyi", "doubao", "wenxin"].forEach((platformKey) => {
+                    setter(platformKey, `API调用失败：${error.message || "请求失败"}`);
+                });
+            } finally {
+                button.disabled = false;
+                button.textContent = originalText;
             }
         }
 
@@ -1168,7 +1429,12 @@ CMA/CNAS资质信息：CMA资质编号：2026000000
             Object.entries(testCases).forEach(([platformKey, value]) => {
                 setAiTextareaValue(platformKey, value);
             });
-            clearCompareResults();
+            clearLabelCompareResults();
+        });
+
+        const runLabelAiButton = document.getElementById("run_label_ai_button");
+        runLabelAiButton.addEventListener("click", () => {
+            runAiApi("/api/run_label_ai", promptTextarea.value, setAiTextareaValue, runLabelAiButton);
         });
 
         const clearTestCaseButton = document.getElementById("clear_test_case_button");
@@ -1176,7 +1442,7 @@ CMA/CNAS资质信息：CMA资质编号：2026000000
             Object.keys(testCases).forEach((platformKey) => {
                 setAiTextareaValue(platformKey, "");
             });
-            clearCompareResults();
+            clearLabelCompareResults();
         });
 
         const fillReportTestCaseButton = document.getElementById("fill_report_test_case_button");
@@ -1184,10 +1450,12 @@ CMA/CNAS资质信息：CMA资质编号：2026000000
             Object.entries(reportTestCases).forEach(([platformKey, value]) => {
                 setReportTextareaValue(platformKey, value);
             });
-            const reportCompareResults = document.getElementById("report_compare_results");
-            if (reportCompareResults) {
-                reportCompareResults.remove();
-            }
+            clearReportCompareResults();
+        });
+
+        const runReportAiButton = document.getElementById("run_report_ai_button");
+        runReportAiButton.addEventListener("click", () => {
+            runAiApi("/api/run_report_ai", reportPromptTextarea.value, setReportTextareaValue, runReportAiButton);
         });
 
         const clearReportTestCaseButton = document.getElementById("clear_report_test_case_button");
@@ -1195,10 +1463,7 @@ CMA/CNAS资质信息：CMA资质编号：2026000000
             Object.keys(reportTestCases).forEach((platformKey) => {
                 setReportTextareaValue(platformKey, "");
             });
-            const reportCompareResults = document.getElementById("report_compare_results");
-            if (reportCompareResults) {
-                reportCompareResults.remove();
-            }
+            clearReportCompareResults();
         });
 
         document.querySelectorAll(".clear-one-button").forEach((button) => {
@@ -1208,6 +1473,27 @@ CMA/CNAS资质信息：CMA资质编号：2026000000
                     target.value = "";
                     target.focus();
                 }
+            });
+        });
+
+        document.querySelectorAll(".deepseek-open-button").forEach((button) => {
+            button.addEventListener("click", () => {
+                const statusElement = document.getElementById(button.dataset.status);
+                openDeepSeek(statusElement);
+            });
+        });
+
+        document.querySelectorAll(".deepseek-copy-label-prompt-button").forEach((button) => {
+            button.addEventListener("click", () => {
+                const statusElement = document.getElementById(button.dataset.status);
+                copyPromptForDeepSeek(promptTextarea.value, statusElement);
+            });
+        });
+
+        document.querySelectorAll(".deepseek-copy-report-prompt-button").forEach((button) => {
+            button.addEventListener("click", () => {
+                const statusElement = document.getElementById(button.dataset.status);
+                copyPromptForDeepSeek(reportPromptTextarea.value, statusElement);
             });
         });
 
@@ -1241,7 +1527,7 @@ CMA/CNAS资质信息：CMA资质编号：2026000000
                 textarea.value = "";
             });
 
-            clearCompareResults();
+            clearLabelCompareResults();
         });
 
         const clearReportAllButton = document.getElementById("clear_report_all_button");
@@ -1250,10 +1536,128 @@ CMA/CNAS资质信息：CMA资质编号：2026000000
                 textarea.value = "";
             });
 
-            const reportCompareResults = document.getElementById("report_compare_results");
-            if (reportCompareResults) {
-                reportCompareResults.remove();
+            clearReportCompareResults();
+        });
+
+        const labelCompareButton = document.getElementById("labelCompareButton");
+        if (labelCompareButton) {
+            labelCompareButton.addEventListener("click", () => {
+                submitModuleForm("labelAuditForm");
+            });
+        }
+
+        const reportCompareButton = document.getElementById("reportCompareButton");
+        if (reportCompareButton) {
+            reportCompareButton.addEventListener("click", () => {
+                submitModuleForm("reportAuditForm");
+            });
+        }
+
+        const crossCheckButton = document.getElementById("crossCheckButton");
+        if (crossCheckButton) {
+            crossCheckButton.addEventListener("click", () => {
+                submitModuleForm("crossCheckForm");
+            });
+        }
+
+        function getFirstFilledTextareaValue(selector) {
+            const textarea = Array.from(document.querySelectorAll(selector)).find((item) => item.value.trim());
+            return textarea ? textarea.value.trim() : "";
+        }
+
+        const fillCrossLabelButton = document.getElementById("fill_cross_label_button");
+        if (fillCrossLabelButton) {
+            fillCrossLabelButton.addEventListener("click", () => {
+                const target = document.getElementById("cross_label_text");
+                if (target) {
+                    target.value = getFirstFilledTextareaValue(".ai-result");
+                }
+            });
+        }
+
+        const fillCrossReportButton = document.getElementById("fill_cross_report_button");
+        if (fillCrossReportButton) {
+            fillCrossReportButton.addEventListener("click", () => {
+                const target = document.getElementById("cross_report_text");
+                if (target) {
+                    target.value = getFirstFilledTextareaValue(".report-ai-result");
+                }
+            });
+        }
+
+        const clearCrossButton = document.getElementById("clear_cross_button");
+        if (clearCrossButton) {
+            clearCrossButton.addEventListener("click", () => {
+                const labelText = document.getElementById("cross_label_text");
+                const reportText = document.getElementById("cross_report_text");
+                if (labelText) {
+                    labelText.value = "";
+                }
+                if (reportText) {
+                    reportText.value = "";
+                }
+                clearCrossCheckResults();
+            });
+        }
+
+        function appendPreservedField(form, name, value) {
+            if (form.elements[name]) {
+                return;
             }
+
+            const input = document.createElement("input");
+            input.type = "hidden";
+            input.name = name;
+            input.value = value;
+            input.dataset.preservedState = "true";
+            form.appendChild(input);
+        }
+
+        function appendPreservedState(form) {
+            form.querySelectorAll("[data-preserved-state='true']").forEach((input) => input.remove());
+            document.querySelectorAll(".ai-result, .report-ai-result, #cross_label_text, #cross_report_text").forEach((input) => {
+                appendPreservedField(form, input.name, input.value);
+            });
+        }
+
+        function prepareCrossCheckSubmit(event) {
+            const labelText = document.getElementById("cross_label_text");
+            const reportText = document.getElementById("cross_report_text");
+            const savedLabelText = labelText?.value.trim() || getFirstFilledTextareaValue(".ai-result");
+            const savedReportText = reportText?.value.trim() || getFirstFilledTextareaValue(".report-ai-result");
+
+            refreshModuleResults();
+            if (!savedLabelText) {
+                event.preventDefault();
+                window.sessionStorage.removeItem("preservedScrollPosition");
+                window.alert("请先完成标签模块比对，或粘贴标签审核结果。");
+                return false;
+            }
+            if (!savedReportText) {
+                event.preventDefault();
+                window.sessionStorage.removeItem("preservedScrollPosition");
+                window.alert("请先完成检验报告模块比对，或粘贴报告审核结果。");
+                return false;
+            }
+
+            if (labelText && !labelText.value.trim()) {
+                labelText.value = savedLabelText;
+            }
+            if (reportText && !reportText.value.trim()) {
+                reportText.value = savedReportText;
+            }
+            return true;
+        }
+
+        document.querySelectorAll("#labelAuditForm, #reportAuditForm, #crossCheckForm").forEach((form) => {
+            form.addEventListener("submit", (event) => {
+                event.preventDefault();
+                if (form.id === "crossCheckForm" && !prepareCrossCheckSubmit(event)) {
+                    return;
+                }
+                appendPreservedState(form);
+                form.submit();
+            });
         });
 
         function escapeCsvCell(value) {
@@ -1269,7 +1673,7 @@ CMA/CNAS资质信息：CMA资质编号：2026000000
         }
 
         function getReviewRows() {
-            const table = document.getElementById("compare_table");
+            const table = document.getElementById("labelResultTable");
             if (!table) {
                 return [];
             }
@@ -1305,11 +1709,11 @@ CMA/CNAS资质信息：CMA资质编号：2026000000
         }
 
         function generateReviewRecord() {
-            const conclusion = document.getElementById("final_conclusion")?.value || "待复核";
-            const note = document.getElementById("review_note")?.value.trim() || "未填写";
+            const conclusion = document.getElementById("labelFinalConclusion")?.value || "待复核";
+            const note = document.getElementById("labelReviewNote")?.value.trim() || "未填写";
             const keyFields = getKeyReviewFields();
             const keyFieldText = keyFields.length > 0 ? keyFields.join("、") : "无";
-            const recordOutput = document.getElementById("review_record");
+            const recordOutput = document.getElementById("labelReviewRecord");
 
             if (!recordOutput) {
                 return;
@@ -1327,20 +1731,20 @@ ${getManualRemarks() || "无"}`;
         }
 
         function downloadCompareTableCsv() {
-            const table = document.getElementById("compare_table");
+            const table = document.getElementById("labelResultTable");
             if (!table) {
                 return;
             }
 
-            const finalConclusion = document.getElementById("final_conclusion")?.value || "";
-            const reviewNote = document.getElementById("review_note")?.value || "";
+            const labelFinalConclusionValue = document.getElementById("labelFinalConclusion")?.value || "";
+            const reviewNote = document.getElementById("labelReviewNote")?.value || "";
             const rows = Array.from(table.querySelectorAll("tr"));
             const csvRows = rows.map((row) => {
                 const cells = Array.from(row.querySelectorAll("th, td"));
                 return cells.map((cell) => escapeCsvCell(getCellValue(cell))).join(",");
             });
             csvRows.push("");
-            csvRows.push([escapeCsvCell("最终审核结论"), escapeCsvCell(finalConclusion)].join(","));
+            csvRows.push([escapeCsvCell("最终审核结论"), escapeCsvCell(labelFinalConclusionValue)].join(","));
             csvRows.push([escapeCsvCell("审核说明"), escapeCsvCell(reviewNote)].join(","));
             const csvContent = "\ufeff" + csvRows.join("\r\n");
             const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -1356,20 +1760,20 @@ ${getManualRemarks() || "无"}`;
         }
 
         function downloadReportTableCsv() {
-            const table = document.getElementById("report_compare_table");
+            const table = document.getElementById("reportResultTable");
             if (!table) {
                 return;
             }
 
-            const finalConclusion = document.getElementById("final_report_conclusion")?.value || "";
-            const reviewNote = document.getElementById("report_review_note")?.value || "";
+            const reportFinalConclusionValue = document.getElementById("reportFinalConclusion")?.value || "";
+            const reviewNote = document.getElementById("reportReviewNote")?.value || "";
             const rows = Array.from(table.querySelectorAll("tr"));
             const csvRows = rows.map((row) => {
                 const cells = Array.from(row.querySelectorAll("th, td"));
                 return cells.map((cell) => escapeCsvCell(getCellValue(cell))).join(",");
             });
             csvRows.push("");
-            csvRows.push([escapeCsvCell("最终报告审核结论"), escapeCsvCell(finalConclusion)].join(","));
+            csvRows.push([escapeCsvCell("最终报告审核结论"), escapeCsvCell(reportFinalConclusionValue)].join(","));
             csvRows.push([escapeCsvCell("报告审核说明"), escapeCsvCell(reviewNote)].join(","));
             const csvContent = "\ufeff" + csvRows.join("\r\n");
             const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -1384,26 +1788,32 @@ ${getManualRemarks() || "无"}`;
             URL.revokeObjectURL(url);
         }
 
-        const saveCsvButton = document.getElementById("save_csv_button");
-        if (saveCsvButton) {
-            saveCsvButton.addEventListener("click", downloadCompareTableCsv);
+        const labelExportCsvButton = document.getElementById("labelExportCsv");
+        if (labelExportCsvButton) {
+            labelExportCsvButton.addEventListener("click", (event) => {
+                event.preventDefault();
+                downloadCompareTableCsv();
+            });
         }
 
-        const saveReportCsvButton = document.getElementById("save_report_csv_button");
-        if (saveReportCsvButton) {
-            saveReportCsvButton.addEventListener("click", downloadReportTableCsv);
+        const reportExportCsvButton = document.getElementById("reportExportCsv");
+        if (reportExportCsvButton) {
+            reportExportCsvButton.addEventListener("click", (event) => {
+                event.preventDefault();
+                downloadReportTableCsv();
+            });
         }
 
-        const generateRecordButton = document.getElementById("generate_record_button");
+        const generateRecordButton = document.getElementById("labelGenerateRecord");
         if (generateRecordButton) {
             generateRecordButton.addEventListener("click", generateReviewRecord);
         }
 
-        const copyRecordButton = document.getElementById("copy_record_button");
+        const copyRecordButton = document.getElementById("labelCopyRecord");
         if (copyRecordButton) {
             copyRecordButton.addEventListener("click", async () => {
-                const recordOutput = document.getElementById("review_record");
-                const recordStatus = document.getElementById("copy_record_status");
+                const recordOutput = document.getElementById("labelReviewRecord");
+                const recordStatus = document.getElementById("labelCopyRecordStatus");
 
                 if (!recordOutput.value.trim()) {
                     generateReviewRecord();
@@ -1423,6 +1833,8 @@ ${getManualRemarks() || "无"}`;
                 }, 1800);
             });
         }
+
+        restoreCurrentScrollPosition();
     </script>
 </body>
 </html>

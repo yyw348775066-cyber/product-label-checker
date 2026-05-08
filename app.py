@@ -1,12 +1,18 @@
 import os
 import re
+import subprocess
+import sys
 from datetime import datetime
+from pathlib import Path
 
-from flask import Flask, render_template, request, send_from_directory, url_for
+from flask import Flask, jsonify, render_template, request, send_from_directory, url_for
 from werkzeug.utils import secure_filename
+
+from ai_clients import call_all_ai_platforms
 
 
 app = Flask(__name__)
+BASE_DIR = Path(__file__).resolve().parent
 
 UPLOAD_FOLDER = "uploads"
 REPORT_UPLOAD_FOLDER = os.path.join(UPLOAD_FOLDER, "reports")
@@ -53,16 +59,36 @@ REPORT_FIELDS = [
     "检验类别",
     "委托单位",
     "生产单位",
-    "执行标准",
     "样品规格",
-    "检验依据",
     "判定依据",
     "签发日期",
-    "检验机构",
-    "CMA/CNAS资质信息",
+    "CMA/CNAS资质结论",
     "标准必检项目清单",
     "报告项目匹配核对",
     "不合格及风险提示",
+]
+
+
+REPORT_COMPARE_FIELDS = [
+    "产品名称",
+    "报告编号",
+    "检验类别",
+    "委托单位",
+    "生产单位",
+    "样品规格",
+    "判定依据",
+    "签发日期",
+    "CMA/CNAS资质结论",
+    "不合格及风险提示",
+]
+
+
+LABEL_REPORT_CROSS_CHECK_FIELDS = [
+    ("产品名称", "产品名称", "产品名称"),
+    ("生产企业", "生产单位", "生产主体"),
+    ("委托企业", "委托单位", "委托主体"),
+    ("净含量", "样品规格", "规格信息"),
+    ("执行标准", "判定依据", "标准依据"),
 ]
 
 
@@ -135,15 +161,8 @@ REPORT_FIELD_PATTERNS = {
     "生产单位": [
         r"(?:生产单位|生产企业|生产商|制造商)\s*[:：]\s*(.+)",
     ],
-    "执行标准": [
-        r"(?:执行标准|产品标准|标准号|标准)\s*[:：]\s*(.+)",
-        r"\b(GB/T\s*\d+(?:\.\d+)?(?:-\d+)?|GB\s*\d+(?:\.\d+)?(?:-\d+)?|Q/[A-Z0-9\-\s]+)\b",
-    ],
     "样品规格": [
         r"(?:样品规格|规格型号|规格|型号)\s*[:：]\s*(.+)",
-    ],
-    "检验依据": [
-        r"(?:检验依据|检测依据|试验依据)\s*[:：]\s*(.+)",
     ],
     "判定依据": [
         r"(?:判定依据|评价依据|判定标准)\s*[:：]\s*(.+)",
@@ -151,11 +170,8 @@ REPORT_FIELD_PATTERNS = {
     "签发日期": [
         r"(?:签发日期|签发时间|批准日期|报告日期|签发)\s*[:：]\s*(.+)",
     ],
-    "检验机构": [
-        r"(?:检验机构|检测机构|检验单位|检测单位|机构名称)\s*[:：]\s*(.+)",
-    ],
-    "CMA/CNAS资质信息": [
-        r"(?:CMA/CNAS资质信息|资质信息|CMA|CNAS|资质认定)\s*[:：]\s*(.+)",
+    "CMA/CNAS资质结论": [
+        r"(?:CMA/CNAS资质结论|CMA/CNAS资质信息|资质结论|资质信息|CMA|CNAS|资质认定)\s*[:：]\s*(.+)",
     ],
     "标准必检项目清单": [
         r"(?:标准必检项目清单|必检项目清单|标准项目清单|必检项目)\s*[:：]\s*(.+)",
@@ -192,31 +208,31 @@ REPORT_FIELD_ALIASES = {
     "检验类别": ["检验类别", "检验类型", "检验性质", "类别"],
     "委托单位": ["委托单位", "委托方", "送检单位", "客户名称"],
     "生产单位": ["生产单位", "生产企业", "生产商", "制造商"],
-    "执行标准": ["执行标准", "产品标准", "标准号", "标准"],
     "样品规格": ["样品规格", "规格型号", "规格", "型号"],
-    "检验依据": ["检验依据", "检测依据", "试验依据"],
     "判定依据": ["判定依据", "评价依据", "判定标准"],
     "签发日期": ["签发日期", "签发时间", "批准日期", "报告日期"],
-    "检验机构": ["检验机构", "检测机构", "检验单位", "检测单位", "机构名称"],
-    "CMA/CNAS资质信息": ["CMA/CNAS资质信息", "资质信息", "CMA", "CNAS", "资质认定"],
+    "CMA/CNAS资质结论": ["CMA/CNAS资质结论", "CMA/CNAS资质信息", "资质结论", "资质信息", "CMA", "CNAS", "资质认定"],
     "标准必检项目清单": ["标准必检项目清单", "必检项目清单", "标准项目清单", "必检项目"],
     "报告项目匹配核对": ["报告项目匹配核对", "项目匹配核对", "报告项目审核", "项目核对"],
     "不合格及风险提示": ["不合格及风险提示", "不合格提示", "报告风险提示", "风险提示", "不合格", "风险"],
 }
 
-INVALID_RESULTS = {"未提取到", "未填写", "未看到", "未看见"}
+INVALID_RESULTS = {"未提取到", "未填写", "未看到", "未看见", "未看到CMA/CNAS资质"}
 KEY_FIELDS = {"净含量", "执行标准", "配料表", "生产许可证", "标签风险提示"}
-REPORT_KEY_FIELDS = {"执行标准", "检验依据", "判定依据", "标准必检项目清单", "报告项目匹配核对", "不合格及风险提示"}
+REPORT_KEY_FIELDS = {"判定依据", "CMA/CNAS资质结论", "标准必检项目清单", "报告项目匹配核对", "不合格及风险提示"}
 LABEL_MISSING_RULES = {
     "生产许可证": "规则命中：未看到生产许可证，需重点复核",
     "联系方式": "规则命中：未看到联系方式，需重点复核",
     "贮存条件": "规则命中：未看到贮存条件，需重点复核",
 }
 REPORT_MISSING_RULES = {
-    "CMA/CNAS资质信息": "规则命中：报告缺少 CMA/CNAS 资质信息，需重点复核",
+    "CMA/CNAS资质结论": "规则命中：报告缺少 CMA/CNAS 资质结论，需重点复核",
     "判定依据": "规则命中：报告缺少判定依据，需重点复核",
     "签发日期": "规则命中：签发日期未看到，需重点复核",
 }
+REPORT_MISSING_RULES[REPORT_COMPARE_FIELDS[-1]] = (
+    "规则命中：报告未看到检验结论或风险提示，需重点复核"
+)
 RISK_KEYWORDS = [
     "不符合",
     "风险",
@@ -272,6 +288,27 @@ def extract_quantity_value(value):
     return re.sub(r"\s+", "", match.group(1))
 
 
+def normalize_cma_cnas_conclusion(value):
+    value = clean_value(value)
+    normalized = re.sub(r"\s+", "", value).upper()
+
+    if any(missing_text in value for missing_text in INVALID_RESULTS):
+        return "未看到CMA/CNAS资质"
+    if "无法判断" in value:
+        return "无法判断，需人工复核"
+
+    has_cma = "CMA" in normalized
+    has_cnas = "CNAS" in normalized
+    if has_cma and has_cnas:
+        return "同时具备CMA和CNAS资质"
+    if has_cma:
+        return "具备CMA资质"
+    if has_cnas:
+        return "具备CNAS资质"
+
+    return value
+
+
 def all_field_aliases(field_aliases_map=None):
     field_aliases_map = field_aliases_map or FIELD_ALIASES
     aliases = []
@@ -302,6 +339,8 @@ def find_labeled_value(text, field, field_aliases_map=None, risk_field="标签�
     value = text[start:end]
     if field == "净含量":
         return extract_quantity_value(value)
+    if field == "CMA/CNAS资质结论":
+        return normalize_cma_cnas_conclusion(value)
 
     return clean_value(value)
 
@@ -350,6 +389,8 @@ def extract_field_with_config(text, field, field_patterns, field_aliases, risk_f
                 return format_risk_text(value)
             if field == "净含量":
                 return extract_quantity_value(value)
+            if field == "CMA/CNAS资质结论":
+                return normalize_cma_cnas_conclusion(value)
             return value
 
     return "未提取到"
@@ -401,6 +442,18 @@ def normalize_for_compare(value, field=None):
     return normalized
 
 
+def normalize_for_cross_check(value, field):
+    if not is_valid_result(value):
+        return value
+
+    if field in {"净含量", "样品规格"}:
+        return normalize_for_compare(extract_quantity_value(value), "净含量")
+    if field in {"执行标准", "判定依据"}:
+        return normalize_for_compare(value, "执行标准")
+
+    return re.sub(r"\s+", "", value).strip()
+
+
 def judge_difference(values, field=None):
     valid_values = [value for value in values if is_valid_result(value)]
 
@@ -415,6 +468,63 @@ def judge_difference(values, field=None):
         return "一致", "same"
 
     return "存在差异，需人工复核", "different"
+
+
+def judge_cross_check(label_value, report_value, label_field, report_field):
+    label_valid = is_valid_result(label_value)
+    report_valid = is_valid_result(report_value)
+
+    if not label_valid and not report_valid:
+        return "双方均未看到", "not-extracted"
+    if not label_valid:
+        return "标签未看到，建议人工复核", "warning"
+    if not report_valid:
+        return "报告未看到，建议人工复核", "warning"
+
+    normalized_label = normalize_for_cross_check(label_value, label_field)
+    normalized_report = normalize_for_cross_check(report_value, report_field)
+    if normalized_label == normalized_report:
+        return "一致", "same"
+
+    if "无法判断" in normalized_label or "无法判断" in normalized_report:
+        return "无法判断，建议人工复核", "warning"
+
+    return "不一致，建议人工复核", "different"
+
+
+def resolve_cross_check_value(data, field, extractor):
+    if isinstance(data, dict):
+        value = data.get(field, "未提取到")
+        return clean_value(str(value))
+
+    return extractor(data or "", field)
+
+
+def cross_check_label_report(label_data, report_data):
+    table = []
+
+    for label_field, report_field, field_name in LABEL_REPORT_CROSS_CHECK_FIELDS:
+        label_value = resolve_cross_check_value(label_data, label_field, extract_field)
+        report_value = resolve_cross_check_value(report_data, report_field, extract_report_field)
+        result, row_class = judge_cross_check(label_value, report_value, label_field, report_field)
+        table.append(
+            {
+                "item": field_name,
+                "label_field": label_field,
+                "report_field": report_field,
+                "label_value": label_value,
+                "report_value": report_value,
+                "result": result,
+                "note": "",
+                "row_class": row_class,
+            }
+        )
+
+    return table
+
+
+def build_label_report_cross_check(label_text, report_text):
+    return cross_check_label_report(label_text, report_text)
 
 
 def has_risk_keyword(values):
@@ -500,7 +610,7 @@ def build_compare_table(results):
 def build_report_compare_table(results):
     table = []
 
-    for field in REPORT_FIELDS:
+    for field in REPORT_COMPARE_FIELDS:
         values = {
             platform["key"]: extract_report_field(results.get(platform["key"], ""), field)
             for platform in AI_PLATFORMS
@@ -575,6 +685,18 @@ def build_summary(compare_table):
     return summary
 
 
+def has_any_result(results):
+    return any(value.strip() for value in results.values())
+
+
+def first_filled_result(results):
+    for value in results.values():
+        if value.strip():
+            return value.strip()
+
+    return ""
+
+
 @app.route("/", methods=["GET", "POST"])
 def index():
     image_url = None
@@ -583,16 +705,25 @@ def index():
     report_compare_table = None
     report_summary = None
     error = None
+    label_file_name = None
     report_error = None
     report_file_url = None
     report_file_name = None
     report_file_is_image = False
     ai_results = {platform["key"]: "" for platform in AI_PLATFORMS}
     report_results = {platform["key"]: "" for platform in AI_PLATFORMS}
+    cross_label_text = ""
+    cross_report_text = ""
+    cross_check_table = None
 
     if request.method == "POST":
         audit_type = request.form.get("audit_type", "label")
         file = request.files.get("label_image")
+        for platform in AI_PLATFORMS:
+            ai_results[platform["key"]] = request.form.get(f"{platform['key']}_result", "").strip()
+            report_results[platform["key"]] = request.form.get(f"report_{platform['key']}_result", "").strip()
+        cross_label_text = request.form.get("cross_label_text", "").strip()
+        cross_report_text = request.form.get("cross_report_text", "").strip()
 
         if audit_type == "label" and file and file.filename:
             if allowed_file(file.filename):
@@ -600,6 +731,7 @@ def index():
                 save_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
                 file.save(save_path)
                 image_url = url_for("static_upload", filename=filename)
+                label_file_name = file.filename
             else:
                 error = "仅支持 png、jpg、jpeg、webp 格式的图片。"
 
@@ -616,23 +748,34 @@ def index():
                 else:
                     report_error = "仅支持 jpg、jpeg、png、pdf 格式的检验报告文件。"
 
-            for platform in AI_PLATFORMS:
-                field_name = f"report_{platform['key']}_result"
-                report_results[platform["key"]] = request.form.get(field_name, "").strip()
-
             report_compare_table = build_report_compare_table(report_results)
             report_summary = build_summary(report_compare_table)
+            if has_any_result(ai_results):
+                compare_table = build_compare_table(ai_results)
+                summary = build_summary(compare_table)
+        elif audit_type == "cross":
+            if not cross_label_text:
+                cross_label_text = first_filled_result(ai_results)
+            if not cross_report_text:
+                cross_report_text = first_filled_result(report_results)
+            cross_check_table = cross_check_label_report(cross_label_text, cross_report_text)
+            if has_any_result(ai_results):
+                compare_table = build_compare_table(ai_results)
+                summary = build_summary(compare_table)
+            if has_any_result(report_results):
+                report_compare_table = build_report_compare_table(report_results)
+                report_summary = build_summary(report_compare_table)
         else:
-            for platform in AI_PLATFORMS:
-                field_name = f"{platform['key']}_result"
-                ai_results[platform["key"]] = request.form.get(field_name, "").strip()
-
             compare_table = build_compare_table(ai_results)
             summary = build_summary(compare_table)
+            if has_any_result(report_results):
+                report_compare_table = build_report_compare_table(report_results)
+                report_summary = build_summary(report_compare_table)
 
     return render_template(
         "index.html",
         image_url=image_url,
+        label_file_name=label_file_name,
         compare_table=compare_table,
         summary=summary,
         report_compare_table=report_compare_table,
@@ -642,6 +785,9 @@ def index():
         report_file_url=report_file_url,
         report_file_name=report_file_name,
         report_file_is_image=report_file_is_image,
+        cross_label_text=cross_label_text,
+        cross_report_text=cross_report_text,
+        cross_check_table=cross_check_table,
         ai_platforms=AI_PLATFORMS,
         error=error,
         report_error=report_error,
@@ -656,6 +802,44 @@ def static_upload(filename):
 @app.route("/uploads/reports/<filename>")
 def report_upload(filename):
     return send_from_directory(app.config["REPORT_UPLOAD_FOLDER"], filename)
+
+
+@app.route("/api/run_label_ai", methods=["POST"])
+def run_label_ai():
+    data = request.get_json(silent=True) or {}
+    prompt = data.get("prompt", "")
+    image_path = data.get("image_path")
+
+    return jsonify({"results": call_all_ai_platforms(prompt, image_path)})
+
+
+@app.route("/api/run_report_ai", methods=["POST"])
+def run_report_ai():
+    data = request.get_json(silent=True) or {}
+    prompt = data.get("prompt", "")
+    image_path = data.get("image_path")
+
+    return jsonify({"results": call_all_ai_platforms(prompt, image_path)})
+
+
+@app.route("/automation/open_deepseek", methods=["POST"])
+def open_deepseek_automation():
+    runner_path = BASE_DIR / "automation" / "deepseek_runner.py"
+    if not runner_path.exists():
+        return jsonify({"success": False, "error": "DeepSeek自动化脚本不存在"}), 500
+
+    try:
+        subprocess.Popen(
+            [sys.executable, str(runner_path)],
+            cwd=str(BASE_DIR),
+        )
+    except OSError as error:
+        return jsonify({"success": False, "error": f"DeepSeek启动失败：{error}"}), 500
+
+    return jsonify({
+        "success": True,
+        "message": "DeepSeek 已打开，请上传文件并粘贴提示词",
+    })
 
 
 if __name__ == "__main__":
