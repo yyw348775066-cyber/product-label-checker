@@ -611,7 +611,7 @@
                             {% if platform.key == "deepseek" %}
                                 <div class="copy-status" id="label_deepseek_status"></div>
                                 <div class="deepseek-helper">
-                                    <p>当前标签文件：{% if image_url %}<a href="{{ image_url }}" target="_blank" rel="noopener">{{ label_file_name or image_url }}</a>{% else %}尚未上传标签图片{% endif %}</p>
+                                    <p>当前标签文件：<span id="label_current_file_name">{% if image_url %}<a href="{{ image_url }}" target="_blank" rel="noopener">{{ label_file_name or image_url }}</a>{% else %}尚未上传标签图片{% endif %}</span></p>
                                     <p>操作提示：</p>
                                     <ol>
                                         <li>点击“打开 DeepSeek”</li>
@@ -864,7 +864,7 @@ CMA/CNAS资质结论：
                                     {% if platform.key == "deepseek" %}
                                         <div class="copy-status" id="report_deepseek_status"></div>
                                         <div class="deepseek-helper">
-                                            <p>当前报告文件：{% if report_file_url %}<a href="{{ report_file_url }}" target="_blank" rel="noopener">{{ report_file_name or report_file_url }}</a>{% else %}尚未上传检验报告{% endif %}</p>
+                                            <p>当前报告文件：<span id="report_current_file_name">{% if report_file_url %}<a href="{{ report_file_url }}" target="_blank" rel="noopener">{{ report_file_name or report_file_url }}</a>{% else %}尚未上传检验报告{% endif %}</span></p>
                                             <p>操作提示：</p>
                                             <ol>
                                                 <li>点击“打开 DeepSeek”</li>
@@ -1559,6 +1559,22 @@ CMA/CNAS资质结论：具备CMA资质
                 submitModuleForm("crossCheckForm");
             });
         }
+
+        function bindCurrentFileName(inputId, outputId, emptyText) {
+            const fileInput = document.getElementById(inputId);
+            const fileNameOutput = document.getElementById(outputId);
+            if (!fileInput || !fileNameOutput) {
+                return;
+            }
+
+            fileInput.addEventListener("change", () => {
+                const selectedFile = fileInput.files && fileInput.files.length > 0 ? fileInput.files[0] : null;
+                fileNameOutput.textContent = selectedFile ? selectedFile.name : emptyText;
+            });
+        }
+
+        bindCurrentFileName("label_image", "label_current_file_name", "尚未上传标签图片");
+        bindCurrentFileName("report_file", "report_current_file_name", "尚未上传检验报告");
 
         function getFirstFilledTextareaValue(selector) {
             const textarea = Array.from(document.querySelectorAll(selector)).find((item) => item.value.trim());

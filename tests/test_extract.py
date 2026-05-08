@@ -857,6 +857,20 @@ def test_deepseek_helper_shows_manual_file_instructions():
     assert "点击生成报告对比表" in html
 
 
+def test_file_inputs_update_deepseek_current_file_names():
+    flask_app.config["TESTING"] = True
+    client = flask_app.test_client()
+
+    response = client.get("/")
+    html = response.get_data(as_text=True)
+
+    assert 'id="label_current_file_name"' in html
+    assert 'id="report_current_file_name"' in html
+    assert 'fileInput.addEventListener("change"' in html
+    assert 'bindCurrentFileName("label_image", "label_current_file_name", "尚未上传标签图片")' in html
+    assert 'bindCurrentFileName("report_file", "report_current_file_name", "尚未上传检验报告")' in html
+
+
 def test_open_deepseek_route_starts_runner_without_blocking(monkeypatch):
     captured = {}
 
@@ -925,7 +939,12 @@ def test_label_upload_file_name_is_shown_in_deepseek_helper(tmp_path):
     assert response.status_code == 200
     assert "当前标签文件：" in html
     assert "label-sample.png" in html
-    assert "尚未上传标签图片" not in html
+    label_file_start = html.index('id="label_current_file_name"')
+    label_file_end = html.index("</span>", label_file_start)
+    label_file_hint = html[label_file_start:label_file_end]
+
+    assert "label-sample.png" in label_file_hint
+    assert "尚未上传标签图片" not in label_file_hint
 
 
 def test_report_pdf_upload_is_saved_to_report_folder(tmp_path):
