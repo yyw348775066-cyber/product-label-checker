@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>产品标签审核对比工具</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: #f4f6f8;
+            color: #1f2937;
+            font-family: Arial, "Microsoft YaHei", sans-serif;
+            line-height: 1.5;
+        }
+
+        .page {
+            width: min(95vw, 1800px);
+            margin: 24px auto;
+        }
+
+        .panel {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 24px;
+        }
+
+        h1 {
+            margin: 0 0 8px;
+            font-size: 26px;
+        }
+
+        h2 {
+            margin: 0 0 14px;
+            font-size: 20px;
+        }
+
+        .hint {
+            margin: 0 0 24px;
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        .section {
+            margin-top: 22px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 700;
+        }
+
+        input[type="file"] {
+            width: 100%;
+            padding: 12px;
+            background: #f9fafb;
+            border: 1px dashed #cbd5e1;
+            border-radius: 8px;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 150px;
+            padding: 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            resize: vertical;
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        select {
+            width: 100%;
+            min-height: 44px;
+            padding: 0 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            background: #fff;
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        .prompt-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        .prompt-header label {
+            margin-bottom: 0;
+        }
+
+        .prompt-box {
+            min-height: 310px;
+            background: #fbfdff;
+            line-height: 1.6;
+        }
+
+        .copy-button {
+            min-height: 36px;
+            padding: 0 14px;
+            background: #0f766e;
+            white-space: nowrap;
+        }
+
+        .copy-button:hover {
+            background: #0d5f59;
+        }
+
+        .copy-status {
+            min-height: 20px;
+            margin-top: 8px;
+            color: #166534;
+            font-size: 13px;
+        }
+
+        .example-details {
+            margin-top: 12px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            background: #fff;
+        }
+
+        .example-details summary {
+            padding: 12px 14px;
+            cursor: pointer;
+            font-weight: 700;
+        }
+
+        .example-content {
+            margin: 0;
+            padding: 0 14px 14px;
+            color: #374151;
+            white-space: pre-wrap;
+            font-family: Arial, "Microsoft YaHei", sans-serif;
+        }
+
+        .input-header,
+        .table-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        .input-header label,
+        .table-header h2 {
+            margin: 0;
+        }
+
+        textarea:focus,
+        input[type="file"]:focus,
+        select:focus {
+            outline: 2px solid #93c5fd;
+            border-color: #2563eb;
+        }
+
+        .textarea-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 16px;
+        }
+
+        .preview {
+            margin-top: 14px;
+        }
+
+        .preview img {
+            display: block;
+            max-width: min(520px, 100%);
+            max-height: 460px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            object-fit: contain;
+            background: #fff;
+        }
+
+        .error {
+            margin-top: 12px;
+            padding: 10px 12px;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            color: #991b1b;
+            font-size: 14px;
+        }
+
+        button {
+            min-height: 44px;
+            padding: 0 22px;
+            background: #2563eb;
+            color: #fff;
+            border: 0;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        button:hover {
+            background: #1d4ed8;
+        }
+
+        .secondary-button {
+            background: #475569;
+        }
+
+        .secondary-button:hover {
+            background: #334155;
+        }
+
+        .small-button {
+            min-height: 32px;
+            padding: 0 12px;
+            font-size: 13px;
+            background: #64748b;
+        }
+
+        .small-button:hover {
+            background: #475569;
+        }
+
+        .form-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+        }
+
+        table {
+            width: 100%;
+            min-width: 1320px;
+            table-layout: fixed;
+            border-collapse: collapse;
+            background: #fff;
+        }
+
+        th,
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #e5e7eb;
+            border-right: 1px solid #e5e7eb;
+            text-align: left;
+            vertical-align: top;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        th:last-child,
+        td:last-child {
+            border-right: 0;
+        }
+
+        tr:last-child td {
+            border-bottom: 0;
+        }
+
+        th {
+            background: #f8fafc;
+            color: #374151;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        td:first-child {
+            width: 130px;
+            background: #fbfdff;
+            font-weight: 700;
+            color: #111827;
+        }
+
+        th:first-child {
+            width: 130px;
+        }
+
+        tr.key-review .diff-cell {
+            color: #92400e;
+            font-weight: 800;
+        }
+
+        .ai-value-cell {
+            white-space: pre-wrap;
+        }
+
+        .cell-different {
+            background: #fef2f2;
+        }
+
+        .cell-risk {
+            background: #fef3c7;
+        }
+
+        .summary {
+            padding: 18px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(6, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .summary-card {
+            min-height: 86px;
+            padding: 14px;
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+        }
+
+        .summary-label {
+            margin: 0 0 8px;
+            color: #64748b;
+            font-size: 13px;
+        }
+
+        .summary-value {
+            margin: 0;
+            color: #111827;
+            font-size: 28px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .suggestion {
+            margin-top: 14px;
+            padding: 12px 14px;
+            border-radius: 8px;
+            font-weight: 700;
+        }
+
+        .suggestion.success {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            color: #166534;
+        }
+
+        .suggestion.danger {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #991b1b;
+        }
+
+        .suggestion.warning {
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            color: #92400e;
+        }
+
+        .suggestion.neutral {
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            color: #334155;
+        }
+
+        .diff-cell {
+            font-weight: 700;
+        }
+
+        .remark-input {
+            width: 100%;
+            min-height: 76px;
+            padding: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            resize: vertical;
+            font-size: 14px;
+            font-family: inherit;
+            background: rgba(255, 255, 255, 0.7);
+        }
+
+        .review-panel {
+            padding: 18px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #f8fafc;
+        }
+
+        .review-grid {
+            display: grid;
+            grid-template-columns: 240px 1fr;
+            gap: 16px;
+        }
+
+        .review-note {
+            min-height: 120px;
+        }
+
+        .record-box {
+            margin-top: 16px;
+        }
+
+        .record-output {
+            min-height: 240px;
+            background: #fff;
+            line-height: 1.6;
+        }
+
+        @media (max-width: 900px) {
+            .page {
+                width: calc(100% - 20px);
+                margin: 10px auto;
+            }
+
+            .textarea-grid {
+                grid-template-columns: 1fr;
+            }
+
+                .summary-grid {
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                }
+
+                .prompt-header {
+                    align-items: flex-start;
+                    flex-direction: column;
+                }
+
+                .input-header,
+                .table-header {
+                    align-items: flex-start;
+                    flex-direction: column;
+                }
+
+                .review-grid {
+                    grid-template-columns: 1fr;
+                }
+
+            .panel {
+                padding: 16px;
+            }
+        }
+
+        @media (max-width: 560px) {
+            h1 {
+                font-size: 22px;
+            }
+
+            .summary-grid {
+                grid-template-columns: 1fr;
+            }
+
+            table {
+                min-width: 1120px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="page">
+        <section class="panel">
+            <h1>产品标签审核对比工具</h1>
+            <p class="hint">上传产品标签图片，粘贴五个平台的审核结果后生成字段对比表。当前版本只使用关键词和正则规则提取字段，不调用外部 AI API。</p>
+
+            <form method="POST" enctype="multipart/form-data">
+                <div class="section">
+                    <label for="label_image">产品标签图片</label>
+                    <input id="label_image" type="file" name="label_image" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp">
+                    {% if error %}
+                        <div class="error">{{ error }}</div>
+                    {% endif %}
+                    {% if image_url %}
+                        <div class="preview">
+                            <img src="{{ image_url }}" alt="已上传的产品标签图片">
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="section">
+                    <div class="prompt-header">
+                        <label for="standard_prompt">标准审核提示词</label>
+                        <button class="copy-button" type="button" id="copy_prompt_button">复制提示词</button>
+                    </div>
+                    <textarea class="prompt-box" id="standard_prompt" readonly>请你作为食品标签审核助手，根据我上传的产品标签图片，提取并审核以下信息：
+1. 产品名称
+2. 执行标准
+3. 生产许可证
+4. 配料表
+5. 保质期
+6. 净含量
+7. 生产企业
+8. 标签风险提示
+
+请严格按照以下格式输出：
+产品名称：
+执行标准：
+生产许可证：
+配料表：
+保质期：
+净含量：
+生产企业：
+标签风险提示：
+1. xxx
+2. xxx
+3. xxx
+
+要求：
+- 如果图片中没有看到对应信息，请填写“未看到”
+- 不要编造标签中没有的信息
+- 对可能存在的问题，请写在“标签风险提示”中
+- 标签风险提示必须逐条编号，每条风险单独一行
+- 标签风险提示编号格式固定为英文数字加点号，例如：1. 2. 3.
+- 禁止把多个风险合并成一段文字
+- 如果未发现风险，标签风险提示必须输出：
+  标签风险提示：
+  1. 暂未发现明显风险
+- 输出尽量简洁，便于复制到对比工具中
+</textarea>
+                    <div class="copy-status" id="copy_prompt_status"></div>
+                    <details class="example-details">
+                        <summary>示例输出格式</summary>
+                        <pre class="example-content">产品名称：示例产品
+执行标准：GB/T XXXXX
+生产许可证：SCXXXXXXXXXXXXXX
+配料表：水、白砂糖、浓缩果汁
+保质期：12个月
+净含量：500mL
+生产企业：示例食品有限公司
+标签风险提示：
+1. 暂未发现明显风险</pre>
+                    </details>
+                </div>
+
+                <div class="section form-actions">
+                    <button class="secondary-button" type="button" id="fill_test_case_button">填入测试样例</button>
+                    <button class="secondary-button" type="button" id="clear_test_case_button">清空测试样例</button>
+                </div>
+
+                <div class="section textarea-grid">
+                    {% for platform in ai_platforms %}
+                        <div>
+                            <div class="input-header">
+                                <label for="{{ platform.key }}_result">{{ platform.name }} 审核结果</label>
+                                <button class="small-button clear-one-button" type="button" data-target="{{ platform.key }}_result">清空</button>
+                            </div>
+                            <textarea class="ai-result" id="{{ platform.key }}_result" name="{{ platform.key }}_result" placeholder="粘贴 {{ platform.name }} 的审核结果">{{ ai_results[platform.key] }}</textarea>
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <div class="section form-actions">
+                    <button type="submit">生成对比表格</button>
+                    <button class="secondary-button" type="button" id="clear_all_button">清空全部</button>
+                </div>
+            </form>
+
+            {% if compare_table %}
+                <div id="compare_results">
+                <div class="section">
+                    {% if summary %}
+                        <div class="summary">
+                            <h2>审核结论汇总</h2>
+                            <div class="summary-grid">
+                                <div class="summary-card">
+                                    <p class="summary-label">总字段数</p>
+                                    <p class="summary-value">{{ summary.total }}</p>
+                                </div>
+                                <div class="summary-card">
+                                    <p class="summary-label">一致字段数</p>
+                                    <p class="summary-value">{{ summary.same }}</p>
+                                </div>
+                                <div class="summary-card">
+                                    <p class="summary-label">存在差异字段数</p>
+                                    <p class="summary-value">{{ summary.different }}</p>
+                                </div>
+                                <div class="summary-card">
+                                    <p class="summary-label">仅一个平台提取到字段数</p>
+                                    <p class="summary-value">{{ summary.warning }}</p>
+                                </div>
+                                <div class="summary-card">
+                                    <p class="summary-label">均未提取到字段数</p>
+                                    <p class="summary-value">{{ summary.not_extracted }}</p>
+                                </div>
+                                <div class="summary-card">
+                                    <p class="summary-label">重点复核字段数</p>
+                                    <p class="summary-value">{{ summary.key_review }}</p>
+                                </div>
+                            </div>
+                            <div class="suggestion {{ summary.suggestion_class }}">{{ summary.suggestion }}</div>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="section">
+                    <div class="table-header">
+                        <h2>字段对比表</h2>
+                        <button class="secondary-button" type="button" id="save_csv_button">保存本次结果</button>
+                    </div>
+                    <div class="table-wrap">
+                        <table id="compare_table">
+                            <thead>
+                                <tr>
+                                    <th>字段</th>
+                                    {% for platform in ai_platforms %}
+                                        <th>{{ platform.name }}</th>
+                                    {% endfor %}
+                                    <th>差异判断</th>
+                                    <th>人工复核备注</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in compare_table %}
+                                    <tr class="{{ row.row_class }}{% if row.needs_key_review %} key-review{% endif %}" data-field="{{ row.field }}">
+                                        <td class="field-cell">{% if row.needs_key_review %}⚠️ {% endif %}{{ row.field }}</td>
+                                        {% for platform in ai_platforms %}
+                                            <td class="ai-value-cell {{ row.cell_classes[platform.key] }}">{{ row[platform.key] }}</td>
+                                        {% endfor %}
+                                        <td class="diff-cell">{{ row.diff_result }}</td>
+                                        <td>
+                                            <textarea class="remark-input" placeholder="填写人工复核备注"></textarea>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div class="review-panel">
+                        <h2>最终审核结论</h2>
+                        <div class="review-grid">
+                            <div>
+                                <label for="final_conclusion">审核结论</label>
+                                <select id="final_conclusion">
+                                    <option value="待复核">待复核</option>
+                                    <option value="初步通过">初步通过</option>
+                                    <option value="存在疑问">存在疑问</option>
+                                    <option value="不建议通过">不建议通过</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="review_note">审核说明</label>
+                                <textarea class="review-note" id="review_note" placeholder="填写最终审核说明"></textarea>
+                            </div>
+                        </div>
+                        <div class="section form-actions">
+                            <button type="button" id="generate_record_button">生成审核记录</button>
+                            <button class="secondary-button" type="button" id="copy_record_button">复制审核记录</button>
+                        </div>
+                        <div class="record-box">
+                            <label for="review_record">审核记录</label>
+                            <textarea class="record-output" id="review_record" readonly placeholder="点击“生成审核记录”后在这里显示"></textarea>
+                            <div class="copy-status" id="copy_record_status"></div>
+                        </div>
+                    </div>
+                </div>
+                </div>
+            {% endif %}
+        </section>
+    </main>
+    <script>
+        const copyButton = document.getElementById("copy_prompt_button");
+        const promptTextarea = document.getElementById("standard_prompt");
+        const copyStatus = document.getElementById("copy_prompt_status");
+
+        copyButton.addEventListener("click", async () => {
+            try {
+                await navigator.clipboard.writeText(promptTextarea.value);
+                copyStatus.textContent = "已复制提示词";
+            } catch (error) {
+                promptTextarea.select();
+                document.execCommand("copy");
+                copyStatus.textContent = "已复制提示词";
+            }
+
+            window.setTimeout(() => {
+                copyStatus.textContent = "";
+            }, 1800);
+        });
+
+        const testCases = {
+            chatgpt: `产品名称：清爽橙汁饮料
+执行标准：GB/T 31121
+生产许可证：SC12345678901234
+配料表：水、白砂糖、浓缩橙汁、柠檬酸
+保质期：12个月
+净含量：500mL
+生产企业：示例食品有限公司
+标签风险提示：暂无明显风险`,
+            deepseek: `产品名称：清爽橙汁饮料
+执行标准：GB/T 31121
+生产许可证：SC12345678901234
+配料表：水、白砂糖、浓缩橙汁、柠檬酸
+保质期：12个月
+净含量：500mL
+生产企业：示例食品有限公司
+标签风险提示：暂无明显风险`,
+            tongyi: `产品名称：清爽橙汁饮料
+执行标准：GB/T 31121
+生产许可证：SC12345678901234
+配料表：水、白砂糖、浓缩橙汁、柠檬酸
+保质期：12个月
+净含量：500mL
+生产企业：示例食品有限公司
+标签风险提示：暂无明显风险`,
+            doubao: `产品名称：清爽橙汁饮料
+执行标准：GB/T 31121
+生产许可证：SC12345678901234
+配料表：水、白砂糖、浓缩橙汁、柠檬酸
+保质期：12个月
+净含量：500mL
+生产企业：示例食品有限公司
+标签风险提示：暂无明显风险`,
+            wenxin: `产品名称：清爽橙汁饮料
+执行标准：GB/T 31121
+生产许可证：SC12345678901234
+配料表：水、白砂糖、浓缩橙汁、柠檬酸
+保质期：12个月
+净含量：500mL
+生产企业：示例食品有限公司
+标签风险提示：暂无明显风险`
+        };
+
+        function clearCompareResults() {
+            const compareResults = document.getElementById("compare_results");
+            if (compareResults) {
+                compareResults.remove();
+            }
+        }
+
+        function setAiTextareaValue(platformKey, value) {
+            const textarea = document.getElementById(`${platformKey}_result`);
+            if (textarea) {
+                textarea.value = value;
+            }
+        }
+
+        function autoNumberRiskPromptText(text) {
+            const labelPattern = /标签风险提示\s*[:：]/;
+            const labelMatch = text.match(labelPattern);
+            if (!labelMatch) {
+                return text;
+            }
+
+            const labelStart = labelMatch.index;
+            const contentStart = labelStart + labelMatch[0].length;
+            const beforeRisk = text.slice(0, contentStart);
+            const riskContent = text.slice(contentStart);
+            const lines = riskContent
+                .replace(/\r\n/g, "\n")
+                .replace(/\r/g, "\n")
+                .split("\n");
+            const riskLines = lines.map((line) => line.trim()).filter(Boolean);
+
+            if (riskLines.length <= 1) {
+                return text;
+            }
+
+            const hasNumberedLine = riskLines.some((line) => /^(\d+[\.、]|（\d+）|\(\d+\))\s*/.test(line));
+            if (hasNumberedLine) {
+                return text;
+            }
+
+            const numberedRisk = riskLines.map((line, index) => `${index + 1}. ${line}`).join("\n");
+            return `${beforeRisk}\n${numberedRisk}`;
+        }
+
+        function repairRiskPromptTextarea(textarea) {
+            const repaired = autoNumberRiskPromptText(textarea.value);
+            if (repaired !== textarea.value) {
+                textarea.value = repaired;
+            }
+        }
+
+        const fillTestCaseButton = document.getElementById("fill_test_case_button");
+        fillTestCaseButton.addEventListener("click", () => {
+            Object.entries(testCases).forEach(([platformKey, value]) => {
+                setAiTextareaValue(platformKey, value);
+            });
+            clearCompareResults();
+        });
+
+        const clearTestCaseButton = document.getElementById("clear_test_case_button");
+        clearTestCaseButton.addEventListener("click", () => {
+            Object.keys(testCases).forEach((platformKey) => {
+                setAiTextareaValue(platformKey, "");
+            });
+            clearCompareResults();
+        });
+
+        document.querySelectorAll(".clear-one-button").forEach((button) => {
+            button.addEventListener("click", () => {
+                const target = document.getElementById(button.dataset.target);
+                if (target) {
+                    target.value = "";
+                    target.focus();
+                }
+            });
+        });
+
+        document.querySelectorAll(".ai-result").forEach((textarea) => {
+            textarea.addEventListener("input", () => {
+                repairRiskPromptTextarea(textarea);
+            });
+
+            textarea.addEventListener("paste", () => {
+                window.setTimeout(() => {
+                    repairRiskPromptTextarea(textarea);
+                }, 0);
+            });
+        });
+
+        const clearAllButton = document.getElementById("clear_all_button");
+        clearAllButton.addEventListener("click", () => {
+            document.querySelectorAll(".ai-result").forEach((textarea) => {
+                textarea.value = "";
+            });
+
+            clearCompareResults();
+        });
+
+        function escapeCsvCell(value) {
+            const text = value.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+            return `"${text.replace(/"/g, '""')}"`;
+        }
+
+        function getCellValue(cell) {
+            const fieldCell = cell.classList.contains("field-cell");
+            const input = cell.querySelector("textarea, input, select");
+            const value = input ? input.value : cell.textContent;
+            return fieldCell ? value.replace(/^⚠️\s*/, "") : value;
+        }
+
+        function getReviewRows() {
+            const table = document.getElementById("compare_table");
+            if (!table) {
+                return [];
+            }
+
+            return Array.from(table.querySelectorAll("tbody tr"));
+        }
+
+        function getKeyReviewFields() {
+            return getReviewRows()
+                .filter((row) => row.classList.contains("key-review"))
+                .map((row) => row.dataset.field)
+                .filter(Boolean);
+        }
+
+        function getDifferenceSummary() {
+            return getReviewRows()
+                .map((row) => {
+                    const field = row.dataset.field || getCellValue(row.cells[0]);
+                    const diff = row.querySelector(".diff-cell")?.textContent.trim() || "";
+                    return `${field}：${diff}`;
+                })
+                .join("\n");
+        }
+
+        function getManualRemarks() {
+            return getReviewRows()
+                .map((row) => {
+                    const field = row.dataset.field || getCellValue(row.cells[0]);
+                    const remark = row.querySelector(".remark-input")?.value.trim() || "未填写";
+                    return `${field}：${remark}`;
+                })
+                .join("\n");
+        }
+
+        function generateReviewRecord() {
+            const conclusion = document.getElementById("final_conclusion")?.value || "待复核";
+            const note = document.getElementById("review_note")?.value.trim() || "未填写";
+            const keyFields = getKeyReviewFields();
+            const keyFieldText = keyFields.length > 0 ? keyFields.join("、") : "无";
+            const recordOutput = document.getElementById("review_record");
+
+            if (!recordOutput) {
+                return;
+            }
+
+            recordOutput.value = `产品标签审核记录
+审核结论：${conclusion}
+审核说明：${note}
+重点复核字段：
+${keyFieldText}
+字段差异情况：
+${getDifferenceSummary() || "无"}
+人工备注：
+${getManualRemarks() || "无"}`;
+        }
+
+        function downloadCompareTableCsv() {
+            const table = document.getElementById("compare_table");
+            if (!table) {
+                return;
+            }
+
+            const finalConclusion = document.getElementById("final_conclusion")?.value || "";
+            const reviewNote = document.getElementById("review_note")?.value || "";
+            const rows = Array.from(table.querySelectorAll("tr"));
+            const csvRows = rows.map((row) => {
+                const cells = Array.from(row.querySelectorAll("th, td"));
+                return cells.map((cell) => escapeCsvCell(getCellValue(cell))).join(",");
+            });
+            csvRows.push("");
+            csvRows.push([escapeCsvCell("最终审核结论"), escapeCsvCell(finalConclusion)].join(","));
+            csvRows.push([escapeCsvCell("审核说明"), escapeCsvCell(reviewNote)].join(","));
+            const csvContent = "\ufeff" + csvRows.join("\r\n");
+            const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+
+            link.href = url;
+            link.download = "product_check_result.csv";
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+        }
+
+        const saveCsvButton = document.getElementById("save_csv_button");
+        if (saveCsvButton) {
+            saveCsvButton.addEventListener("click", downloadCompareTableCsv);
+        }
+
+        const generateRecordButton = document.getElementById("generate_record_button");
+        if (generateRecordButton) {
+            generateRecordButton.addEventListener("click", generateReviewRecord);
+        }
+
+        const copyRecordButton = document.getElementById("copy_record_button");
+        if (copyRecordButton) {
+            copyRecordButton.addEventListener("click", async () => {
+                const recordOutput = document.getElementById("review_record");
+                const recordStatus = document.getElementById("copy_record_status");
+
+                if (!recordOutput.value.trim()) {
+                    generateReviewRecord();
+                }
+
+                try {
+                    await navigator.clipboard.writeText(recordOutput.value);
+                    recordStatus.textContent = "已复制审核记录";
+                } catch (error) {
+                    recordOutput.select();
+                    document.execCommand("copy");
+                    recordStatus.textContent = "已复制审核记录";
+                }
+
+                window.setTimeout(() => {
+                    recordStatus.textContent = "";
+                }, 1800);
+            });
+        }
+    </script>
+</body>
+</html>
