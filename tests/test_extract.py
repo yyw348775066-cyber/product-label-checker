@@ -1,3 +1,4 @@
+import io
 import sys
 from pathlib import Path
 
@@ -10,6 +11,7 @@ if str(ROOT_DIR) not in sys.path:
 from app import (
     FIELDS,
     REPORT_FIELDS,
+    app as flask_app,
     build_compare_table,
     build_report_compare_table,
     build_summary,
@@ -295,6 +297,80 @@ def test_compare_table_does_not_mark_clear_no_risk_statement_as_risk():
     assert risk_row["diff_result"] == "一致"
     assert risk_row["needs_key_review"] is False
     assert all(cell_class != "cell-risk" for cell_class in risk_row["cell_classes"].values())
+
+
+def test_compare_table_hits_missing_license_rule():
+    table = build_compare_table(
+        {
+            "chatgpt": "生产许可证：未看到",
+            "deepseek": "生产许可证：未看到",
+            "tongyi": "生产许可证：未看到",
+            "doubao": "生产许可证：未看到",
+            "wenxin": "生产许可证：未看到",
+        }
+    )
+    license_row = next(row for row in table if row["field"] == "生产许可证")
+
+    assert license_row["diff_result"] == "规则命中：未看到生产许可证，需重点复核"
+    assert license_row["row_class"] == "not-extracted"
+    assert license_row["needs_key_review"] is True
+
+
+def test_report_compare_table_hits_missing_cma_rule():
+    table = build_report_compare_table(
+        {
+            "chatgpt": "CMA/CNAS资质信息：未看到",
+            "deepseek": "CMA/CNAS资质信息：未看到",
+            "tongyi": "CMA/CNAS资质信息：未看到",
+            "doubao": "CMA/CNAS资质信息：未看到",
+            "wenxin": "CMA/CNAS资质信息：未看到",
+        }
+    )
+    cma_row = next(row for row in table if row["field"] == "CMA/CNAS资质信息")
+
+    assert cma_row["diff_result"] == "规则命中：报告缺少 CMA/CNAS 资质信息，需重点复核"
+    assert cma_row["row_class"] == "not-extracted"
+    assert cma_row["needs_key_review"] is True
+
+
+def test_index_page_shows_report_upload_area():
+    flask_app.config["TESTING"] = True
+    client = flask_app.test_client()
+
+    response = client.get("/")
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "第三方检验报告上传" in html
+    assert 'name="report_file"' in html
+    assert ".pdf" in html
+
+
+def test_report_pdf_upload_is_saved_to_report_folder(tmp_path):
+    old_report_folder = flask_app.config["REPORT_UPLOAD_FOLDER"]
+    flask_app.config["TESTING"] = True
+    flask_app.config["REPORT_UPLOAD_FOLDER"] = str(tmp_path)
+    client = flask_app.test_client()
+
+    try:
+        response = client.post(
+            "/",
+            data={
+                "audit_type": "report",
+                "report_file": (io.BytesIO(b"%PDF-1.4 test"), "sample.pdf"),
+            },
+            content_type="multipart/form-data",
+        )
+    finally:
+        flask_app.config["REPORT_UPLOAD_FOLDER"] = old_report_folder
+
+    saved_files = list(tmp_path.glob("*_sample.pdf"))
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert len(saved_files) == 1
+    assert "已上传：" in html
+    assert "sample.pdf" in html
 
 
 def test_build_summary_counts_compare_table_statuses():

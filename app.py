@@ -9,10 +9,14 @@ from werkzeug.utils import secure_filename
 app = Flask(__name__)
 
 UPLOAD_FOLDER = "uploads"
+REPORT_UPLOAD_FOLDER = os.path.join(UPLOAD_FOLDER, "reports")
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
+REPORT_ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "pdf"}
 
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+app.config["REPORT_UPLOAD_FOLDER"] = REPORT_UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(REPORT_UPLOAD_FOLDER, exist_ok=True)
 
 
 FIELDS = [
@@ -203,6 +207,16 @@ REPORT_FIELD_ALIASES = {
 INVALID_RESULTS = {"未提取到", "未填写", "未看到", "未看见"}
 KEY_FIELDS = {"净含量", "执行标准", "配料表", "生产许可证", "标签风险提示"}
 REPORT_KEY_FIELDS = {"执行标准", "检验依据", "判定依据", "标准必检项目清单", "报告项目匹配核对", "不合格及风险提示"}
+LABEL_MISSING_RULES = {
+    "生产许可证": "规则命中：未看到生产许可证，需重点复核",
+    "联系方式": "规则命中：未看到联系方式，需重点复核",
+    "贮存条件": "规则命中：未看到贮存条件，需重点复核",
+}
+REPORT_MISSING_RULES = {
+    "CMA/CNAS资质信息": "规则命中：报告缺少 CMA/CNAS 资质信息，需重点复核",
+    "判定依据": "规则命中：报告缺少判定依据，需重点复核",
+    "签发日期": "规则命中：签发日期未看到，需重点复核",
+}
 RISK_KEYWORDS = [
     "不符合",
     "风险",
@@ -227,15 +241,16 @@ NO_RISK_PHRASES = [
 ]
 
 
-def allowed_file(filename):
-    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+def allowed_file(filename, allowed_extensions=None):
+    allowed_extensions = allowed_extensions or ALLOWED_EXTENSIONS
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in allowed_extensions
 
 
-def make_safe_filename(filename):
+def make_safe_filename(filename, default_stem="label"):
     name = secure_filename(filename)
     if not name:
         extension = filename.rsplit(".", 1)[1].lower()
-        name = f"label.{extension}"
+        name = f"{default_stem}.{extension}"
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
     return f"{timestamp}_{name}"
 
@@ -411,6 +426,17 @@ def has_risk_keyword(values):
     )
 
 
+def apply_missing_field_rule(field, values, diff_result, missing_rules):
+    if field in missing_rules and all(not is_valid_result(value) for value in values):
+        return missing_rules[field]
+
+    return diff_result
+
+
+def is_rule_hit(diff_result):
+    return diff_result.startswith("规则命中：")
+
+
 def build_cell_classes(values, field, diff_result):
     classes = {platform["key"]: "" for platform in AI_PLATFORMS}
     valid_items = {
@@ -449,10 +475,11 @@ def build_compare_table(results):
             for platform in AI_PLATFORMS
         }
         diff_result, row_class = judge_difference(values.values(), field)
+        diff_result = apply_missing_field_rule(field, values.values(), diff_result, LABEL_MISSING_RULES)
         if field == "标签风险提示" and has_risk_keyword(values.values()):
             diff_result = "存在风险提示，需重点复核"
 
-        needs_key_review = field in KEY_FIELDS and diff_result != "一致"
+        needs_key_review = (field in KEY_FIELDS and diff_result != "一致") or is_rule_hit(diff_result)
         cell_classes = build_cell_classes(values, field, diff_result)
 
         table.append(
@@ -479,10 +506,11 @@ def build_report_compare_table(results):
             for platform in AI_PLATFORMS
         }
         diff_result, row_class = judge_difference(values.values(), field)
+        diff_result = apply_missing_field_rule(field, values.values(), diff_result, REPORT_MISSING_RULES)
         if field == "不合格及风险提示" and has_risk_keyword(values.values()):
             diff_result = "存在风险提示，需重点复核"
 
-        needs_key_review = field in REPORT_KEY_FIELDS and diff_result != "一致"
+        needs_key_review = (field in REPORT_KEY_FIELDS and diff_result != "一致") or is_rule_hit(diff_result)
         cell_classes = build_cell_classes(values, field, diff_result)
 
         table.append(
@@ -555,6 +583,10 @@ def index():
     report_compare_table = None
     report_summary = None
     error = None
+    report_error = None
+    report_file_url = None
+    report_file_name = None
+    report_file_is_image = False
     ai_results = {platform["key"]: "" for platform in AI_PLATFORMS}
     report_results = {platform["key"]: "" for platform in AI_PLATFORMS}
 
@@ -572,6 +604,18 @@ def index():
                 error = "仅支持 png、jpg、jpeg、webp 格式的图片。"
 
         if audit_type == "report":
+            report_file = request.files.get("report_file")
+            if report_file and report_file.filename:
+                if allowed_file(report_file.filename, REPORT_ALLOWED_EXTENSIONS):
+                    filename = make_safe_filename(report_file.filename, "report")
+                    save_path = os.path.join(app.config["REPORT_UPLOAD_FOLDER"], filename)
+                    report_file.save(save_path)
+                    report_file_url = url_for("report_upload", filename=filename)
+                    report_file_name = report_file.filename
+                    report_file_is_image = filename.rsplit(".", 1)[1].lower() in {"png", "jpg", "jpeg"}
+                else:
+                    report_error = "仅支持 jpg、jpeg、png、pdf 格式的检验报告文件。"
+
             for platform in AI_PLATFORMS:
                 field_name = f"report_{platform['key']}_result"
                 report_results[platform["key"]] = request.form.get(field_name, "").strip()
@@ -595,14 +639,23 @@ def index():
         report_summary=report_summary,
         ai_results=ai_results,
         report_results=report_results,
+        report_file_url=report_file_url,
+        report_file_name=report_file_name,
+        report_file_is_image=report_file_is_image,
         ai_platforms=AI_PLATFORMS,
         error=error,
+        report_error=report_error,
     )
 
 
 @app.route("/uploads/<filename>")
 def static_upload(filename):
     return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
+
+
+@app.route("/uploads/reports/<filename>")
+def report_upload(filename):
+    return send_from_directory(app.config["REPORT_UPLOAD_FOLDER"], filename)
 
 
 if __name__ == "__main__":

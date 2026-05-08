@@ -691,8 +691,26 @@
             <div class="section">
                 <div class="review-panel">
                     <h2>第三方食品检验报告审核</h2>
-                    <form method="POST">
+                    <form method="POST" enctype="multipart/form-data">
                         <input type="hidden" name="audit_type" value="report">
+
+                        <div class="section">
+                            <label for="report_file">第三方检验报告上传</label>
+                            <input id="report_file" type="file" name="report_file" accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf">
+                            {% if report_error %}
+                                <div class="error">{{ report_error }}</div>
+                            {% endif %}
+                            {% if report_file_url %}
+                                <div class="preview">
+                                    {% if report_file_is_image %}
+                                        <img src="{{ report_file_url }}" alt="已上传的第三方检验报告">
+                                    {% endif %}
+                                    <p class="hint">
+                                        已上传：<a href="{{ report_file_url }}" target="_blank" rel="noopener">{{ report_file_name }}</a>
+                                    </p>
+                                </div>
+                            {% endif %}
+                        </div>
 
                         <div class="section">
                             <div class="prompt-header">
