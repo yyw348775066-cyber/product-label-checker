@@ -17,12 +17,19 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 FIELDS = [
     "产品名称",
-    "执行标准",
-    "生产许可证",
-    "配料表",
-    "保质期",
     "净含量",
+    "执行标准",
+    "配料表",
+    "质量等级",
+    "生产日期",
+    "保质期",
     "生产企业",
+    "生产企业地址",
+    "生产许可证",
+    "委托企业",
+    "委托企业地址",
+    "联系方式",
+    "贮存条件",
     "标签风险提示",
 ]
 
@@ -33,6 +40,25 @@ AI_PLATFORMS = [
     {"key": "tongyi", "name": "通义千问"},
     {"key": "doubao", "name": "豆包"},
     {"key": "wenxin", "name": "文心一言"},
+]
+
+
+REPORT_FIELDS = [
+    "产品名称",
+    "报告编号",
+    "检验类别",
+    "委托单位",
+    "生产单位",
+    "执行标准",
+    "样品规格",
+    "检验依据",
+    "判定依据",
+    "签发日期",
+    "检验机构",
+    "CMA/CNAS资质信息",
+    "标准必检项目清单",
+    "报告项目匹配核对",
+    "不合格及风险提示",
 ]
 
 
@@ -51,6 +77,13 @@ FIELD_PATTERNS = {
     "配料表": [
         r"(?:配料表|配料|原料)\s*[:：]\s*(.+)",
     ],
+    "质量等级": [
+        r"(?:质量等级|品质等级|等级)\s*[:：]\s*(.+)",
+    ],
+    "生产日期": [
+        r"(?:生产日期|生产批号|批号|见喷码|见包装)\s*[:：]\s*(.+)",
+        r"(?:生产日期|生产批号)\s*([0-9]{4}[年\-/\.][0-9]{1,2}[月\-/\.][0-9]{1,2}日?)",
+    ],
     "保质期": [
         r"(?:保质期|保存期限|质保期)\s*[:：]\s*(.+)",
         r"保质期\s*(\d+\s*(?:天|个月|月|年))",
@@ -60,10 +93,74 @@ FIELD_PATTERNS = {
         r"\b(\d+(?:\.\d+)?\s*(?:kg|g|克|千克|ml|mL|毫升|L|升))\b",
     ],
     "生产企业": [
-        r"(?:生产企业|生产商|制造商|委托方|受委托方|生产厂家|生产单位)\s*[:：]\s*(.+)",
+        r"(?:生产企业|生产商|制造商|生产厂家|生产单位)\s*[:：]\s*(.+)",
+    ],
+    "生产企业地址": [
+        r"(?:生产企业地址|生产地址|生产厂家地址|生产单位地址|地址)\s*[:：]\s*(.+)",
+    ],
+    "委托企业": [
+        r"(?:委托企业|委托方|委托单位|委托商)\s*[:：]\s*(.+)",
+    ],
+    "委托企业地址": [
+        r"(?:委托企业地址|委托方地址|委托单位地址|委托商地址)\s*[:：]\s*(.+)",
+    ],
+    "联系方式": [
+        r"(?:联系方式|联系电话|电话|服务热线|客服电话|客服热线|网址|网站|邮箱|电子邮箱)\s*[:：]\s*(.+)",
+    ],
+    "贮存条件": [
+        r"(?:贮存条件|储存条件|保存条件|贮藏条件|储藏条件)\s*[:：]\s*(.+)",
     ],
     "标签风险提示": [
         r"(?:标签风险提示|风险提示|问题|不符合|疑点|风险|建议)\s*[:：]\s*(.+)",
+    ],
+}
+
+REPORT_FIELD_PATTERNS = {
+    "产品名称": [
+        r"(?:产品名称|样品名称|品名|名称)\s*[:：]\s*(.+)",
+    ],
+    "报告编号": [
+        r"(?:报告编号|检验报告编号|报告号|编号)\s*[:：]\s*(.+)",
+    ],
+    "检验类别": [
+        r"(?:检验类别|检验类型|检验性质|类别)\s*[:：]\s*(.+)",
+    ],
+    "委托单位": [
+        r"(?:委托单位|委托方|送检单位|客户名称)\s*[:：]\s*(.+)",
+    ],
+    "生产单位": [
+        r"(?:生产单位|生产企业|生产商|制造商)\s*[:：]\s*(.+)",
+    ],
+    "执行标准": [
+        r"(?:执行标准|产品标准|标准号|标准)\s*[:：]\s*(.+)",
+        r"\b(GB/T\s*\d+(?:\.\d+)?(?:-\d+)?|GB\s*\d+(?:\.\d+)?(?:-\d+)?|Q/[A-Z0-9\-\s]+)\b",
+    ],
+    "样品规格": [
+        r"(?:样品规格|规格型号|规格|型号)\s*[:：]\s*(.+)",
+    ],
+    "检验依据": [
+        r"(?:检验依据|检测依据|试验依据)\s*[:：]\s*(.+)",
+    ],
+    "判定依据": [
+        r"(?:判定依据|评价依据|判定标准)\s*[:：]\s*(.+)",
+    ],
+    "签发日期": [
+        r"(?:签发日期|签发时间|批准日期|报告日期|签发)\s*[:：]\s*(.+)",
+    ],
+    "检验机构": [
+        r"(?:检验机构|检测机构|检验单位|检测单位|机构名称)\s*[:：]\s*(.+)",
+    ],
+    "CMA/CNAS资质信息": [
+        r"(?:CMA/CNAS资质信息|资质信息|CMA|CNAS|资质认定)\s*[:：]\s*(.+)",
+    ],
+    "标准必检项目清单": [
+        r"(?:标准必检项目清单|必检项目清单|标准项目清单|必检项目)\s*[:：]\s*(.+)",
+    ],
+    "报告项目匹配核对": [
+        r"(?:报告项目匹配核对|项目匹配核对|报告项目审核|项目核对)\s*[:：]\s*(.+)",
+    ],
+    "不合格及风险提示": [
+        r"(?:不合格及风险提示|不合格提示|报告风险提示|风险提示|不合格|风险)\s*[:：]\s*(.+)",
     ],
 }
 
@@ -72,14 +169,40 @@ FIELD_ALIASES = {
     "执行标准": ["执行标准", "产品标准号", "标准号", "标准"],
     "生产许可证": ["生产许可证", "食品生产许可证编号", "许可证编号"],
     "配料表": ["配料表", "配料", "原料"],
+    "质量等级": ["质量等级", "品质等级", "等级"],
+    "生产日期": ["生产日期", "生产批号", "批号", "见喷码", "见包装"],
     "保质期": ["保质期", "保存期限", "质保期"],
     "净含量": ["净含量", "规格"],
-    "生产企业": ["生产企业", "生产商", "制造商", "委托方", "受委托方", "生产厂家", "生产单位"],
+    "生产企业": ["生产企业", "生产商", "制造商", "生产厂家", "生产单位"],
+    "生产企业地址": ["生产企业地址", "生产地址", "生产厂家地址", "生产单位地址"],
+    "委托企业": ["委托企业", "委托方", "委托单位", "委托商"],
+    "委托企业地址": ["委托企业地址", "委托方地址", "委托单位地址", "委托商地址"],
+    "联系方式": ["联系方式", "联系电话", "电话", "服务热线", "客服电话", "客服热线", "网址", "网站", "邮箱", "电子邮箱"],
+    "贮存条件": ["贮存条件", "储存条件", "保存条件", "贮藏条件", "储藏条件"],
     "标签风险提示": ["标签风险提示", "风险提示", "问题", "不符合", "疑点", "风险", "建议"],
 }
 
+REPORT_FIELD_ALIASES = {
+    "产品名称": ["产品名称", "样品名称", "品名", "名称"],
+    "报告编号": ["报告编号", "检验报告编号", "报告号"],
+    "检验类别": ["检验类别", "检验类型", "检验性质", "类别"],
+    "委托单位": ["委托单位", "委托方", "送检单位", "客户名称"],
+    "生产单位": ["生产单位", "生产企业", "生产商", "制造商"],
+    "执行标准": ["执行标准", "产品标准", "标准号", "标准"],
+    "样品规格": ["样品规格", "规格型号", "规格", "型号"],
+    "检验依据": ["检验依据", "检测依据", "试验依据"],
+    "判定依据": ["判定依据", "评价依据", "判定标准"],
+    "签发日期": ["签发日期", "签发时间", "批准日期", "报告日期"],
+    "检验机构": ["检验机构", "检测机构", "检验单位", "检测单位", "机构名称"],
+    "CMA/CNAS资质信息": ["CMA/CNAS资质信息", "资质信息", "CMA", "CNAS", "资质认定"],
+    "标准必检项目清单": ["标准必检项目清单", "必检项目清单", "标准项目清单", "必检项目"],
+    "报告项目匹配核对": ["报告项目匹配核对", "项目匹配核对", "报告项目审核", "项目核对"],
+    "不合格及风险提示": ["不合格及风险提示", "不合格提示", "报告风险提示", "风险提示", "不合格", "风险"],
+}
+
 INVALID_RESULTS = {"未提取到", "未填写", "未看到", "未看见"}
-KEY_FIELDS = {"执行标准", "生产许可证", "配料表", "标签风险提示"}
+KEY_FIELDS = {"净含量", "执行标准", "配料表", "生产许可证", "标签风险提示"}
+REPORT_KEY_FIELDS = {"执行标准", "检验依据", "判定依据", "标准必检项目清单", "报告项目匹配核对", "不合格及风险提示"}
 RISK_KEYWORDS = [
     "不符合",
     "风险",
@@ -98,6 +221,9 @@ NO_RISK_PHRASES = [
     "未见明显风险",
     "无明显风险",
     "暂无风险",
+    "未发现明显标签风险",
+    "未发现明显风险",
+    "未发现明显风险标准项目完整性仍需人工复核",
 ]
 
 
@@ -131,15 +257,17 @@ def extract_quantity_value(value):
     return re.sub(r"\s+", "", match.group(1))
 
 
-def all_field_aliases():
+def all_field_aliases(field_aliases_map=None):
+    field_aliases_map = field_aliases_map or FIELD_ALIASES
     aliases = []
-    for field_aliases in FIELD_ALIASES.values():
+    for field_aliases in field_aliases_map.values():
         aliases.extend(field_aliases)
     return sorted(set(aliases), key=len, reverse=True)
 
 
-def find_labeled_value(text, field):
-    aliases = sorted(FIELD_ALIASES.get(field, []), key=len, reverse=True)
+def find_labeled_value(text, field, field_aliases_map=None, risk_field="标签风险提示"):
+    field_aliases_map = field_aliases_map or FIELD_ALIASES
+    aliases = sorted(field_aliases_map.get(field, []), key=len, reverse=True)
     if not aliases:
         return None
 
@@ -149,11 +277,11 @@ def find_labeled_value(text, field):
         return None
 
     start = label_match.end()
-    next_alias_pattern = "|".join(re.escape(alias) for alias in all_field_aliases())
+    next_alias_pattern = "|".join(re.escape(alias) for alias in all_field_aliases(field_aliases_map))
     next_label = re.search(rf"(?:{next_alias_pattern})\s*[:：]", text[start:], re.IGNORECASE)
     end = start + next_label.start() if next_label else len(text)
 
-    if field == "标签风险提示":
+    if field == risk_field:
         return text[start:end].strip(" ：:，,;；") or "未提取到"
 
     value = text[start:end]
@@ -189,27 +317,41 @@ def format_risk_text(text):
     return text
 
 
-def extract_field(text, field):
+def extract_field_with_config(text, field, field_patterns, field_aliases, risk_field):
     if not text.strip():
         return "未填写"
 
-    labeled_value = find_labeled_value(text, field)
+    labeled_value = find_labeled_value(text, field, field_aliases, risk_field)
     if labeled_value:
-        if field == "标签风险提示":
+        if field == risk_field:
             return format_risk_text(labeled_value)
         return labeled_value
 
-    for pattern in FIELD_PATTERNS.get(field, []):
+    for pattern in field_patterns.get(field, []):
         match = re.search(pattern, text, re.IGNORECASE | re.MULTILINE)
         if match:
             value = clean_value(match.group(1))
-            if field == "标签风险提示":
+            if field == risk_field:
                 return format_risk_text(value)
             if field == "净含量":
                 return extract_quantity_value(value)
             return value
 
     return "未提取到"
+
+
+def extract_field(text, field):
+    return extract_field_with_config(text, field, FIELD_PATTERNS, FIELD_ALIASES, "标签风险提示")
+
+
+def extract_report_field(text, field):
+    return extract_field_with_config(
+        text,
+        field,
+        REPORT_FIELD_PATTERNS,
+        REPORT_FIELD_ALIASES,
+        "不合格及风险提示",
+    )
 
 
 def is_valid_result(value):
@@ -225,7 +367,7 @@ def normalize_for_compare(value, field=None):
     if not is_valid_result(value):
         return value
 
-    if field == "标签风险提示" and is_no_risk_statement(value):
+    if field in {"标签风险提示", "不合格及风险提示"} and is_no_risk_statement(value):
         return "无明显风险"
 
     normalized = re.sub(r"\s+", " ", value).strip()
@@ -328,6 +470,36 @@ def build_compare_table(results):
     return table
 
 
+def build_report_compare_table(results):
+    table = []
+
+    for field in REPORT_FIELDS:
+        values = {
+            platform["key"]: extract_report_field(results.get(platform["key"], ""), field)
+            for platform in AI_PLATFORMS
+        }
+        diff_result, row_class = judge_difference(values.values(), field)
+        if field == "不合格及风险提示" and has_risk_keyword(values.values()):
+            diff_result = "存在风险提示，需重点复核"
+
+        needs_key_review = field in REPORT_KEY_FIELDS and diff_result != "一致"
+        cell_classes = build_cell_classes(values, field, diff_result)
+
+        table.append(
+            {
+                "field": field,
+                **values,
+                "diff_result": diff_result,
+                "row_class": row_class,
+                "is_key_field": field in REPORT_KEY_FIELDS,
+                "needs_key_review": needs_key_review,
+                "cell_classes": cell_classes,
+            }
+        )
+
+    return table
+
+
 def build_summary(compare_table):
     summary = {
         "total": len(compare_table),
@@ -380,13 +552,17 @@ def index():
     image_url = None
     compare_table = None
     summary = None
+    report_compare_table = None
+    report_summary = None
     error = None
     ai_results = {platform["key"]: "" for platform in AI_PLATFORMS}
+    report_results = {platform["key"]: "" for platform in AI_PLATFORMS}
 
     if request.method == "POST":
+        audit_type = request.form.get("audit_type", "label")
         file = request.files.get("label_image")
 
-        if file and file.filename:
+        if audit_type == "label" and file and file.filename:
             if allowed_file(file.filename):
                 filename = make_safe_filename(file.filename)
                 save_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
@@ -395,19 +571,30 @@ def index():
             else:
                 error = "仅支持 png、jpg、jpeg、webp 格式的图片。"
 
-        for platform in AI_PLATFORMS:
-            field_name = f"{platform['key']}_result"
-            ai_results[platform["key"]] = request.form.get(field_name, "").strip()
+        if audit_type == "report":
+            for platform in AI_PLATFORMS:
+                field_name = f"report_{platform['key']}_result"
+                report_results[platform["key"]] = request.form.get(field_name, "").strip()
 
-        compare_table = build_compare_table(ai_results)
-        summary = build_summary(compare_table)
+            report_compare_table = build_report_compare_table(report_results)
+            report_summary = build_summary(report_compare_table)
+        else:
+            for platform in AI_PLATFORMS:
+                field_name = f"{platform['key']}_result"
+                ai_results[platform["key"]] = request.form.get(field_name, "").strip()
+
+            compare_table = build_compare_table(ai_results)
+            summary = build_summary(compare_table)
 
     return render_template(
         "index.html",
         image_url=image_url,
         compare_table=compare_table,
         summary=summary,
+        report_compare_table=report_compare_table,
+        report_summary=report_summary,
         ai_results=ai_results,
+        report_results=report_results,
         ai_platforms=AI_PLATFORMS,
         error=error,
     )

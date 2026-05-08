@@ -7,17 +7,94 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 
-from app import build_compare_table, build_summary, extract_field, judge_difference
+from app import (
+    FIELDS,
+    REPORT_FIELDS,
+    build_compare_table,
+    build_report_compare_table,
+    build_summary,
+    extract_field,
+    extract_report_field,
+    judge_difference,
+)
 
 
 STANDARD_TEXT = """产品名称：清爽橙汁饮料
-执行标准：GB/T 31121
-生产许可证：SC12345678901234
-配料表：水、白砂糖、浓缩橙汁、柠檬酸
-保质期：12个月
 净含量：500mL
+执行标准：GB/T 31121
+配料表：水、白砂糖、浓缩橙汁、柠檬酸
+质量等级：未看到
+生产日期：见瓶身喷码
+保质期：12个月
 生产企业：示例食品有限公司
-标签风险提示：暂无明显风险"""
+生产企业地址：广东省广州市示例路1号
+生产许可证：SC12345678901234
+委托企业：未看到
+委托企业地址：未看到
+联系方式：400-123-4567
+贮存条件：常温保存，避免阳光直射
+标签风险提示：未发现明显标签风险"""
+
+
+EXPECTED_FIELDS = [
+    "产品名称",
+    "净含量",
+    "执行标准",
+    "配料表",
+    "质量等级",
+    "生产日期",
+    "保质期",
+    "生产企业",
+    "生产企业地址",
+    "生产许可证",
+    "委托企业",
+    "委托企业地址",
+    "联系方式",
+    "贮存条件",
+    "标签风险提示",
+]
+
+EXPECTED_REPORT_FIELDS = [
+    "产品名称",
+    "报告编号",
+    "检验类别",
+    "委托单位",
+    "生产单位",
+    "执行标准",
+    "样品规格",
+    "检验依据",
+    "判定依据",
+    "签发日期",
+    "检验机构",
+    "CMA/CNAS资质信息",
+    "标准必检项目清单",
+    "报告项目匹配核对",
+    "不合格及风险提示",
+]
+
+REPORT_TEXT = """产品名称：清爽橙汁饮料
+报告编号：R20260508001
+检验类别：委托检验
+委托单位：示例贸易有限公司
+生产单位：示例食品有限公司
+执行标准：GB/T 31121
+样品规格：500mL/瓶
+检验依据：GB 5009 系列方法
+判定依据：GB/T 31121
+签发日期：2026-05-08
+检验机构：示例检测技术有限公司
+CMA/CNAS资质信息：CMA资质编号：2026000000
+标准必检项目清单：感官、净含量、可溶性固形物、菌落总数、大肠菌群，需人工复核标准原文
+报告项目匹配核对：报告项目与常见必检项目基本匹配，需人工复核标准原文
+不合格及风险提示：1. 未发现明显风险，标准项目完整性仍需人工复核"""
+
+
+def test_field_order_is_unified():
+    assert FIELDS == EXPECTED_FIELDS
+
+
+def test_report_field_order_is_unified():
+    assert REPORT_FIELDS == EXPECTED_REPORT_FIELDS
 
 
 def test_extract_product_name_from_standard_format():
@@ -32,14 +109,65 @@ def test_extract_production_license_from_standard_format():
     assert extract_field(STANDARD_TEXT, "生产许可证") == "SC12345678901234"
 
 
+def test_extract_report_fields_from_standard_format():
+    assert extract_report_field(REPORT_TEXT, "产品名称") == "清爽橙汁饮料"
+    assert extract_report_field(REPORT_TEXT, "报告编号") == "R20260508001"
+    assert extract_report_field(REPORT_TEXT, "检验类别") == "委托检验"
+    assert extract_report_field(REPORT_TEXT, "委托单位") == "示例贸易有限公司"
+    assert extract_report_field(REPORT_TEXT, "生产单位") == "示例食品有限公司"
+    assert extract_report_field(REPORT_TEXT, "执行标准") == "GB/T 31121"
+    assert extract_report_field(REPORT_TEXT, "样品规格") == "500mL/瓶"
+    assert extract_report_field(REPORT_TEXT, "检验依据") == "GB 5009 系列方法"
+    assert extract_report_field(REPORT_TEXT, "判定依据") == "GB/T 31121"
+    assert extract_report_field(REPORT_TEXT, "签发日期") == "2026-05-08"
+    assert extract_report_field(REPORT_TEXT, "检验机构") == "示例检测技术有限公司"
+    assert extract_report_field(REPORT_TEXT, "CMA/CNAS资质信息") == "CMA资质编号：2026000000"
+
+
+def test_report_risk_text_is_split_into_lines():
+    text = "不合格及风险提示：1. 缺少检出限说明。2. 判定依据需复核。3. 需人工复核标准原文。"
+
+    assert extract_report_field(text, "不合格及风险提示") == (
+        "1. 缺少检出限说明。\n"
+        "2. 判定依据需复核。\n"
+        "3. 需人工复核标准原文。"
+    )
+
+
+def test_report_compare_table_order_matches_csv_rows():
+    table = build_report_compare_table(
+        {
+            "chatgpt": REPORT_TEXT,
+            "deepseek": REPORT_TEXT,
+            "tongyi": REPORT_TEXT,
+            "doubao": REPORT_TEXT,
+            "wenxin": REPORT_TEXT,
+        }
+    )
+
+    assert [row["field"] for row in table] == EXPECTED_REPORT_FIELDS
+
+
+def test_extract_new_fields_from_standard_format():
+    assert extract_field(STANDARD_TEXT, "质量等级") == "未看到"
+    assert extract_field(STANDARD_TEXT, "生产日期") == "见瓶身喷码"
+    assert extract_field(STANDARD_TEXT, "生产企业地址") == "广东省广州市示例路1号"
+    assert extract_field(STANDARD_TEXT, "委托企业") == "未看到"
+    assert extract_field(STANDARD_TEXT, "委托企业地址") == "未看到"
+    assert extract_field(STANDARD_TEXT, "联系方式") == "400-123-4567"
+    assert extract_field(STANDARD_TEXT, "贮存条件") == "常温保存，避免阳光直射"
+
+
 def test_extract_fields_from_compact_text():
-    text = "产品名称：苹果汁饮料 执行标准：GB/T 31121 生产许可证：SC12345678901234 配料表：水、糖 保质期：12个月 净含量：500mL"
+    text = "产品名称：苹果汁饮料 净含量：500mL 执行标准：GB/T 31121 配料表：水、糖 质量等级：未看到 生产日期：见喷码 保质期：12个月 生产企业：示例食品有限公司 生产企业地址：示例地址 生产许可证：SC12345678901234 委托企业：未看到 委托企业地址：未看到 联系方式：400-000-0000 贮存条件：常温保存"
 
     assert extract_field(text, "产品名称") == "苹果汁饮料"
     assert extract_field(text, "执行标准") == "GB/T 31121"
     assert extract_field(text, "配料表") == "水、糖"
     assert extract_field(text, "保质期") == "12个月"
     assert extract_field(text, "净含量") == "500mL"
+    assert extract_field(text, "生产企业地址") == "示例地址"
+    assert extract_field(text, "联系方式") == "400-000-0000"
 
 
 def test_extract_net_content_from_spec_with_package_suffix():
@@ -181,8 +309,9 @@ def test_build_summary_counts_compare_table_statuses():
     )
     summary = build_summary(compare_table)
 
-    assert summary["total"] == 8
+    assert [row["field"] for row in compare_table] == EXPECTED_FIELDS
+    assert summary["total"] == 15
     assert summary["same"] == 1
-    assert summary["not_extracted"] == 7
+    assert summary["not_extracted"] == 14
     assert summary["warning"] == 0
     assert summary["different"] == 0

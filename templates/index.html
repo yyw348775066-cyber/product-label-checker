@@ -468,6 +468,7 @@
             <p class="hint">上传产品标签图片，粘贴五个平台的审核结果后生成字段对比表。当前版本只使用关键词和正则规则提取字段，不调用外部 AI API。</p>
 
             <form method="POST" enctype="multipart/form-data">
+                <input type="hidden" name="audit_type" value="label">
                 <div class="section">
                     <label for="label_image">产品标签图片</label>
                     <input id="label_image" type="file" name="label_image" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp">
@@ -488,22 +489,36 @@
                     </div>
                     <textarea class="prompt-box" id="standard_prompt" readonly>请你作为食品标签审核助手，根据我上传的产品标签图片，提取并审核以下信息：
 1. 产品名称
-2. 执行标准
-3. 生产许可证
+2. 净含量
+3. 执行标准
 4. 配料表
-5. 保质期
-6. 净含量
-7. 生产企业
-8. 标签风险提示
+5. 质量等级
+6. 生产日期
+7. 保质期
+8. 生产企业
+9. 生产企业地址
+10. 生产许可证
+11. 委托企业
+12. 委托企业地址
+13. 联系方式
+14. 贮存条件
+15. 标签风险提示
 
 请严格按照以下格式输出：
 产品名称：
-执行标准：
-生产许可证：
-配料表：
-保质期：
 净含量：
+执行标准：
+配料表：
+质量等级：
+生产日期：
+保质期：
 生产企业：
+生产企业地址：
+生产许可证：
+委托企业：
+委托企业地址：
+联系方式：
+贮存条件：
 标签风险提示：
 1. xxx
 2. xxx
@@ -512,27 +527,37 @@
 要求：
 - 如果图片中没有看到对应信息，请填写“未看到”
 - 不要编造标签中没有的信息
+- 不要根据常识补全标签中未展示的信息
+- 联系方式包括电话、服务热线、客服电话、网址、邮箱等，看到哪个提取哪个
+- 地址字段必须区分“生产企业地址”和“委托企业地址”
+- 如果未看到委托关系，请“委托企业”和“委托企业地址”填写“未看到”
 - 对可能存在的问题，请写在“标签风险提示”中
 - 标签风险提示必须逐条编号，每条风险单独一行
 - 标签风险提示编号格式固定为英文数字加点号，例如：1. 2. 3.
 - 禁止把多个风险合并成一段文字
 - 如果未发现风险，标签风险提示必须输出：
   标签风险提示：
-  1. 暂未发现明显风险
-- 输出尽量简洁，便于复制到对比工具中
+  1. 未发现明显标签风险
 </textarea>
                     <div class="copy-status" id="copy_prompt_status"></div>
                     <details class="example-details">
                         <summary>示例输出格式</summary>
                         <pre class="example-content">产品名称：示例产品
-执行标准：GB/T XXXXX
-生产许可证：SCXXXXXXXXXXXXXX
-配料表：水、白砂糖、浓缩果汁
-保质期：12个月
 净含量：500mL
+执行标准：GB/T XXXXX
+配料表：水、白砂糖、浓缩果汁
+质量等级：未看到
+生产日期：见包装喷码
+保质期：12个月
 生产企业：示例食品有限公司
+生产企业地址：示例省示例市示例路1号
+生产许可证：SCXXXXXXXXXXXXXX
+委托企业：未看到
+委托企业地址：未看到
+联系方式：400-000-0000
+贮存条件：常温保存
 标签风险提示：
-1. 暂未发现明显风险</pre>
+1. 未发现明显标签风险</pre>
                     </details>
                 </div>
 
@@ -662,12 +687,219 @@
                 </div>
                 </div>
             {% endif %}
+
+            <div class="section">
+                <div class="review-panel">
+                    <h2>第三方食品检验报告审核</h2>
+                    <form method="POST">
+                        <input type="hidden" name="audit_type" value="report">
+
+                        <div class="section">
+                            <div class="prompt-header">
+                                <label for="report_prompt">报告审核提示词</label>
+                                <button class="copy-button" type="button" id="copy_report_prompt_button">复制提示词</button>
+                            </div>
+                            <textarea class="prompt-box" id="report_prompt" readonly>请根据我上传的第三方食品检验报告，完成以下审核：
+
+一、提取基础信息
+请提取：
+- 产品名称
+- 报告编号
+- 检验类别
+- 委托单位
+- 生产单位
+- 执行标准
+- 样品规格
+- 检验依据
+- 判定依据
+- 签发日期
+- 检验机构
+- CMA/CNAS资质信息
+
+二、标准项目核对
+请结合公开可查询的标准信息：
+- 列出该标准常见必检项目
+- 列出对应限量要求
+- 列出判定依据
+
+三、报告项目审核
+请逐项核对：
+- 是否存在缺项
+- 是否存在漏检
+- 是否存在多检项目
+- 是否存在判定依据缺失
+- 是否存在检验依据错误
+- 是否存在项目与产品类别不匹配
+
+四、数据合理性审核
+请检查：
+- 实测值是否符合限量要求
+- 单位是否合理
+- 数据逻辑是否异常
+- 是否存在明显不合理数值
+- 是否存在“未检出”但缺少检出限说明
+
+五、请严格按照以下格式输出：
+
+产品名称：
+报告编号：
+检验类别：
+委托单位：
+生产单位：
+执行标准：
+样品规格：
+检验依据：
+判定依据：
+签发日期：
+检验机构：
+CMA/CNAS资质信息：
+标准必检项目清单：
+报告项目匹配核对：
+不合格及风险提示：
+1. xxx
+2. xxx
+3. xxx
+
+要求：
+- 如果报告中没有看到对应信息，请填写“未看到”
+- 不要编造报告中没有的信息
+- 不要根据常识补全报告中未展示的信息
+- 标准必检项目清单可以结合公开可查询信息，但必须提示“需人工复核标准原文”
+- 不合格及风险提示必须逐条编号
+- 编号格式固定为英文数字加点号，例如：1. 2. 3.
+- 如果未发现明显风险，请输出：
+  不合格及风险提示：
+  1. 未发现明显风险，标准项目完整性仍需人工复核
+</textarea>
+                            <div class="copy-status" id="copy_report_prompt_status"></div>
+                        </div>
+
+                        <div class="section form-actions">
+                            <button class="secondary-button" type="button" id="fill_report_test_case_button">填入报告测试样例</button>
+                            <button class="secondary-button" type="button" id="clear_report_test_case_button">清空报告测试样例</button>
+                        </div>
+
+                        <div class="section textarea-grid">
+                            {% for platform in ai_platforms %}
+                                <div>
+                                    <div class="input-header">
+                                        <label for="report_{{ platform.key }}_result">{{ platform.name }} 报告审核结果</label>
+                                        <button class="small-button clear-one-button" type="button" data-target="report_{{ platform.key }}_result">清空</button>
+                                    </div>
+                                    <textarea class="report-ai-result" id="report_{{ platform.key }}_result" name="report_{{ platform.key }}_result" placeholder="粘贴 {{ platform.name }} 的报告审核结果">{{ report_results[platform.key] }}</textarea>
+                                </div>
+                            {% endfor %}
+                        </div>
+
+                        <div class="section form-actions">
+                            <button type="submit">生成报告对比表格</button>
+                            <button class="secondary-button" type="button" id="clear_report_all_button">清空报告输入</button>
+                        </div>
+                    </form>
+
+                    {% if report_compare_table %}
+                        <div id="report_compare_results">
+                            <div class="section">
+                                {% if report_summary %}
+                                    <div class="summary">
+                                        <h2>报告风险提示</h2>
+                                        <div class="summary-grid">
+                                            <div class="summary-card">
+                                                <p class="summary-label">总字段数</p>
+                                                <p class="summary-value">{{ report_summary.total }}</p>
+                                            </div>
+                                            <div class="summary-card">
+                                                <p class="summary-label">一致字段数</p>
+                                                <p class="summary-value">{{ report_summary.same }}</p>
+                                            </div>
+                                            <div class="summary-card">
+                                                <p class="summary-label">存在差异字段数</p>
+                                                <p class="summary-value">{{ report_summary.different }}</p>
+                                            </div>
+                                            <div class="summary-card">
+                                                <p class="summary-label">仅一个平台提取到字段数</p>
+                                                <p class="summary-value">{{ report_summary.warning }}</p>
+                                            </div>
+                                            <div class="summary-card">
+                                                <p class="summary-label">均未提取到字段数</p>
+                                                <p class="summary-value">{{ report_summary.not_extracted }}</p>
+                                            </div>
+                                            <div class="summary-card">
+                                                <p class="summary-label">重点复核字段数</p>
+                                                <p class="summary-value">{{ report_summary.key_review }}</p>
+                                            </div>
+                                        </div>
+                                        <div class="suggestion {{ report_summary.suggestion_class }}">{{ report_summary.suggestion }}</div>
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <div class="section">
+                                <div class="table-header">
+                                    <h2>报告字段对比表</h2>
+                                    <button class="secondary-button" type="button" id="save_report_csv_button">保存报告审核结果</button>
+                                </div>
+                                <div class="table-wrap">
+                                    <table id="report_compare_table">
+                                        <thead>
+                                            <tr>
+                                                <th>字段</th>
+                                                {% for platform in ai_platforms %}
+                                                    <th>{{ platform.name }}</th>
+                                                {% endfor %}
+                                                <th>差异判断</th>
+                                                <th>人工备注</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for row in report_compare_table %}
+                                                <tr class="{{ row.row_class }}{% if row.needs_key_review %} key-review{% endif %}" data-field="{{ row.field }}">
+                                                    <td class="field-cell">{% if row.needs_key_review %}⚠️ {% endif %}{{ row.field }}</td>
+                                                    {% for platform in ai_platforms %}
+                                                        <td class="ai-value-cell {{ row.cell_classes[platform.key] }}">{{ row[platform.key] }}</td>
+                                                    {% endfor %}
+                                                    <td class="diff-cell">{{ row.diff_result }}</td>
+                                                    <td>
+                                                        <textarea class="remark-input" placeholder="填写人工备注"></textarea>
+                                                    </td>
+                                                </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div class="section">
+                                <h2>最终报告审核结论</h2>
+                                <div class="review-grid">
+                                    <div>
+                                        <label for="final_report_conclusion">报告审核结论</label>
+                                        <select id="final_report_conclusion">
+                                            <option value="待复核">待复核</option>
+                                            <option value="初步通过">初步通过</option>
+                                            <option value="存在疑问">存在疑问</option>
+                                            <option value="不建议通过">不建议通过</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label for="report_review_note">报告审核说明</label>
+                                        <textarea class="review-note" id="report_review_note" placeholder="填写最终报告审核说明"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
         </section>
     </main>
     <script>
         const copyButton = document.getElementById("copy_prompt_button");
         const promptTextarea = document.getElementById("standard_prompt");
         const copyStatus = document.getElementById("copy_prompt_status");
+        const copyReportPromptButton = document.getElementById("copy_report_prompt_button");
+        const reportPromptTextarea = document.getElementById("report_prompt");
+        const copyReportPromptStatus = document.getElementById("copy_report_prompt_status");
 
         copyButton.addEventListener("click", async () => {
             try {
@@ -684,47 +916,175 @@
             }, 1800);
         });
 
+        copyReportPromptButton.addEventListener("click", async () => {
+            try {
+                await navigator.clipboard.writeText(reportPromptTextarea.value);
+                copyReportPromptStatus.textContent = "已复制报告提示词";
+            } catch (error) {
+                reportPromptTextarea.select();
+                document.execCommand("copy");
+                copyReportPromptStatus.textContent = "已复制报告提示词";
+            }
+
+            window.setTimeout(() => {
+                copyReportPromptStatus.textContent = "";
+            }, 1800);
+        });
+
         const testCases = {
             chatgpt: `产品名称：清爽橙汁饮料
-执行标准：GB/T 31121
-生产许可证：SC12345678901234
-配料表：水、白砂糖、浓缩橙汁、柠檬酸
-保质期：12个月
 净含量：500mL
+执行标准：GB/T 31121
+配料表：水、白砂糖、浓缩橙汁、柠檬酸
+质量等级：未看到
+生产日期：见瓶身喷码
+保质期：12个月
 生产企业：示例食品有限公司
-标签风险提示：暂无明显风险`,
+生产企业地址：广东省广州市示例路1号
+生产许可证：SC12345678901234
+委托企业：未看到
+委托企业地址：未看到
+联系方式：400-123-4567
+贮存条件：常温保存，避免阳光直射
+标签风险提示：未发现明显标签风险`,
             deepseek: `产品名称：清爽橙汁饮料
-执行标准：GB/T 31121
-生产许可证：SC12345678901234
-配料表：水、白砂糖、浓缩橙汁、柠檬酸
-保质期：12个月
 净含量：500mL
+执行标准：GB/T 31121
+配料表：水、白砂糖、浓缩橙汁、柠檬酸
+质量等级：未看到
+生产日期：见瓶身喷码
+保质期：12个月
 生产企业：示例食品有限公司
-标签风险提示：暂无明显风险`,
+生产企业地址：广东省广州市示例路1号
+生产许可证：SC12345678901234
+委托企业：未看到
+委托企业地址：未看到
+联系方式：400-123-4567
+贮存条件：常温保存，避免阳光直射
+标签风险提示：未发现明显标签风险`,
             tongyi: `产品名称：清爽橙汁饮料
-执行标准：GB/T 31121
-生产许可证：SC12345678901234
-配料表：水、白砂糖、浓缩橙汁、柠檬酸
-保质期：12个月
 净含量：500mL
+执行标准：GB/T 31121
+配料表：水、白砂糖、浓缩橙汁、柠檬酸
+质量等级：未看到
+生产日期：见瓶身喷码
+保质期：12个月
 生产企业：示例食品有限公司
-标签风险提示：暂无明显风险`,
+生产企业地址：广东省广州市示例路1号
+生产许可证：SC12345678901234
+委托企业：未看到
+委托企业地址：未看到
+联系方式：400-123-4567
+贮存条件：常温保存，避免阳光直射
+标签风险提示：未发现明显标签风险`,
             doubao: `产品名称：清爽橙汁饮料
-执行标准：GB/T 31121
-生产许可证：SC12345678901234
-配料表：水、白砂糖、浓缩橙汁、柠檬酸
-保质期：12个月
 净含量：500mL
+执行标准：GB/T 31121
+配料表：水、白砂糖、浓缩橙汁、柠檬酸
+质量等级：未看到
+生产日期：见瓶身喷码
+保质期：12个月
 生产企业：示例食品有限公司
-标签风险提示：暂无明显风险`,
+生产企业地址：广东省广州市示例路1号
+生产许可证：SC12345678901234
+委托企业：未看到
+委托企业地址：未看到
+联系方式：400-123-4567
+贮存条件：常温保存，避免阳光直射
+标签风险提示：未发现明显标签风险`,
             wenxin: `产品名称：清爽橙汁饮料
-执行标准：GB/T 31121
-生产许可证：SC12345678901234
-配料表：水、白砂糖、浓缩橙汁、柠檬酸
-保质期：12个月
 净含量：500mL
+执行标准：GB/T 31121
+配料表：水、白砂糖、浓缩橙汁、柠檬酸
+质量等级：未看到
+生产日期：见瓶身喷码
+保质期：12个月
 生产企业：示例食品有限公司
-标签风险提示：暂无明显风险`
+生产企业地址：广东省广州市示例路1号
+生产许可证：SC12345678901234
+委托企业：未看到
+委托企业地址：未看到
+联系方式：400-123-4567
+贮存条件：常温保存，避免阳光直射
+标签风险提示：未发现明显标签风险`
+        };
+
+        const reportTestCases = {
+            chatgpt: `产品名称：清爽橙汁饮料
+报告编号：R20260508001
+检验类别：委托检验
+委托单位：示例贸易有限公司
+生产单位：示例食品有限公司
+执行标准：GB/T 31121
+样品规格：500mL/瓶
+检验依据：GB 5009 系列方法
+判定依据：GB/T 31121
+签发日期：2026-05-08
+检验机构：示例检测技术有限公司
+CMA/CNAS资质信息：CMA资质编号：2026000000
+标准必检项目清单：感官、净含量、可溶性固形物、菌落总数、大肠菌群，需人工复核标准原文
+报告项目匹配核对：报告项目与常见必检项目基本匹配，需人工复核标准原文
+不合格及风险提示：未发现明显风险，标准项目完整性仍需人工复核`,
+            deepseek: `产品名称：清爽橙汁饮料
+报告编号：R20260508001
+检验类别：委托检验
+委托单位：示例贸易有限公司
+生产单位：示例食品有限公司
+执行标准：GB/T 31121
+样品规格：500mL/瓶
+检验依据：GB 5009 系列方法
+判定依据：GB/T 31121
+签发日期：2026-05-08
+检验机构：示例检测技术有限公司
+CMA/CNAS资质信息：CMA资质编号：2026000000
+标准必检项目清单：感官、净含量、可溶性固形物、菌落总数、大肠菌群，需人工复核标准原文
+报告项目匹配核对：报告项目与常见必检项目基本匹配，需人工复核标准原文
+不合格及风险提示：未发现明显风险，标准项目完整性仍需人工复核`,
+            tongyi: `产品名称：清爽橙汁饮料
+报告编号：R20260508001
+检验类别：委托检验
+委托单位：示例贸易有限公司
+生产单位：示例食品有限公司
+执行标准：GB/T 31121
+样品规格：500mL/瓶
+检验依据：GB 5009 系列方法
+判定依据：GB/T 31121
+签发日期：2026-05-08
+检验机构：示例检测技术有限公司
+CMA/CNAS资质信息：CMA资质编号：2026000000
+标准必检项目清单：感官、净含量、可溶性固形物、菌落总数、大肠菌群，需人工复核标准原文
+报告项目匹配核对：报告项目与常见必检项目基本匹配，需人工复核标准原文
+不合格及风险提示：未发现明显风险，标准项目完整性仍需人工复核`,
+            doubao: `产品名称：清爽橙汁饮料
+报告编号：R20260508001
+检验类别：委托检验
+委托单位：示例贸易有限公司
+生产单位：示例食品有限公司
+执行标准：GB/T 31121
+样品规格：500mL/瓶
+检验依据：GB 5009 系列方法
+判定依据：GB/T 31121
+签发日期：2026-05-08
+检验机构：示例检测技术有限公司
+CMA/CNAS资质信息：CMA资质编号：2026000000
+标准必检项目清单：感官、净含量、可溶性固形物、菌落总数、大肠菌群，需人工复核标准原文
+报告项目匹配核对：报告项目与常见必检项目基本匹配，需人工复核标准原文
+不合格及风险提示：未发现明显风险，标准项目完整性仍需人工复核`,
+            wenxin: `产品名称：清爽橙汁饮料
+报告编号：R20260508001
+检验类别：委托检验
+委托单位：示例贸易有限公司
+生产单位：示例食品有限公司
+执行标准：GB/T 31121
+样品规格：500mL/瓶
+检验依据：GB 5009 系列方法
+判定依据：GB/T 31121
+签发日期：2026-05-08
+检验机构：示例检测技术有限公司
+CMA/CNAS资质信息：CMA资质编号：2026000000
+标准必检项目清单：感官、净含量、可溶性固形物、菌落总数、大肠菌群，需人工复核标准原文
+报告项目匹配核对：报告项目与常见必检项目基本匹配，需人工复核标准原文
+不合格及风险提示：未发现明显风险，标准项目完整性仍需人工复核`
         };
 
         function clearCompareResults() {
@@ -741,8 +1101,15 @@
             }
         }
 
-        function autoNumberRiskPromptText(text) {
-            const labelPattern = /标签风险提示\s*[:：]/;
+        function setReportTextareaValue(platformKey, value) {
+            const textarea = document.getElementById(`report_${platformKey}_result`);
+            if (textarea) {
+                textarea.value = value;
+            }
+        }
+
+        function autoNumberRiskPromptText(text, labelName = "标签风险提示") {
+            const labelPattern = new RegExp(`${labelName}\\s*[:：]`);
             const labelMatch = text.match(labelPattern);
             if (!labelMatch) {
                 return text;
@@ -771,8 +1138,8 @@
             return `${beforeRisk}\n${numberedRisk}`;
         }
 
-        function repairRiskPromptTextarea(textarea) {
-            const repaired = autoNumberRiskPromptText(textarea.value);
+        function repairRiskPromptTextarea(textarea, labelName = "标签风险提示") {
+            const repaired = autoNumberRiskPromptText(textarea.value, labelName);
             if (repaired !== textarea.value) {
                 textarea.value = repaired;
             }
@@ -792,6 +1159,28 @@
                 setAiTextareaValue(platformKey, "");
             });
             clearCompareResults();
+        });
+
+        const fillReportTestCaseButton = document.getElementById("fill_report_test_case_button");
+        fillReportTestCaseButton.addEventListener("click", () => {
+            Object.entries(reportTestCases).forEach(([platformKey, value]) => {
+                setReportTextareaValue(platformKey, value);
+            });
+            const reportCompareResults = document.getElementById("report_compare_results");
+            if (reportCompareResults) {
+                reportCompareResults.remove();
+            }
+        });
+
+        const clearReportTestCaseButton = document.getElementById("clear_report_test_case_button");
+        clearReportTestCaseButton.addEventListener("click", () => {
+            Object.keys(reportTestCases).forEach((platformKey) => {
+                setReportTextareaValue(platformKey, "");
+            });
+            const reportCompareResults = document.getElementById("report_compare_results");
+            if (reportCompareResults) {
+                reportCompareResults.remove();
+            }
         });
 
         document.querySelectorAll(".clear-one-button").forEach((button) => {
@@ -816,6 +1205,18 @@
             });
         });
 
+        document.querySelectorAll(".report-ai-result").forEach((textarea) => {
+            textarea.addEventListener("input", () => {
+                repairRiskPromptTextarea(textarea, "不合格及风险提示");
+            });
+
+            textarea.addEventListener("paste", () => {
+                window.setTimeout(() => {
+                    repairRiskPromptTextarea(textarea, "不合格及风险提示");
+                }, 0);
+            });
+        });
+
         const clearAllButton = document.getElementById("clear_all_button");
         clearAllButton.addEventListener("click", () => {
             document.querySelectorAll(".ai-result").forEach((textarea) => {
@@ -823,6 +1224,18 @@
             });
 
             clearCompareResults();
+        });
+
+        const clearReportAllButton = document.getElementById("clear_report_all_button");
+        clearReportAllButton.addEventListener("click", () => {
+            document.querySelectorAll(".report-ai-result").forEach((textarea) => {
+                textarea.value = "";
+            });
+
+            const reportCompareResults = document.getElementById("report_compare_results");
+            if (reportCompareResults) {
+                reportCompareResults.remove();
+            }
         });
 
         function escapeCsvCell(value) {
@@ -924,9 +1337,43 @@ ${getManualRemarks() || "无"}`;
             URL.revokeObjectURL(url);
         }
 
+        function downloadReportTableCsv() {
+            const table = document.getElementById("report_compare_table");
+            if (!table) {
+                return;
+            }
+
+            const finalConclusion = document.getElementById("final_report_conclusion")?.value || "";
+            const reviewNote = document.getElementById("report_review_note")?.value || "";
+            const rows = Array.from(table.querySelectorAll("tr"));
+            const csvRows = rows.map((row) => {
+                const cells = Array.from(row.querySelectorAll("th, td"));
+                return cells.map((cell) => escapeCsvCell(getCellValue(cell))).join(",");
+            });
+            csvRows.push("");
+            csvRows.push([escapeCsvCell("最终报告审核结论"), escapeCsvCell(finalConclusion)].join(","));
+            csvRows.push([escapeCsvCell("报告审核说明"), escapeCsvCell(reviewNote)].join(","));
+            const csvContent = "\ufeff" + csvRows.join("\r\n");
+            const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+
+            link.href = url;
+            link.download = "report_check_result.csv";
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+        }
+
         const saveCsvButton = document.getElementById("save_csv_button");
         if (saveCsvButton) {
             saveCsvButton.addEventListener("click", downloadCompareTableCsv);
+        }
+
+        const saveReportCsvButton = document.getElementById("save_report_csv_button");
+        if (saveReportCsvButton) {
+            saveReportCsvButton.addEventListener("click", downloadReportTableCsv);
         }
 
         const generateRecordButton = document.getElementById("generate_record_button");
