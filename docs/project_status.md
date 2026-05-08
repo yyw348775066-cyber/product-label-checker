@@ -60,3 +60,21 @@
 - 小步迭代
 - 优先真实案例验证
 - 不新增复杂依赖
+
+### DeepSeek 网页辅助功能（MVP）
+- Playwright 已接入
+- Chromium 浏览器已安装
+- DeepSeek 持久化浏览器环境已跑通
+- 支持保存登录态
+- Flask 可启动 DeepSeek 浏览器脚本
+- 已验证“打开 DeepSeek”流程
+
+### 当前 DeepSeek 使用流程
+1. 在审核工具中上传标签/报告
+2. 点击“打开 DeepSeek”
+3. DeepSeek 浏览器自动打开
+4. 手动上传对应文件
+5. 点击“复制提示词”
+6. 在 DeepSeek 中粘贴并发送
+7. 将回答复制回对应 textarea
+8. 生成对比表
